@@ -1,0 +1,12 @@
+.codex
+
+# Local Python environment and tool caches
+**/.venv/
+**/.uv-cache/
+**/.mplconfig/
+*.pyc
+__pycache__/
+
+# Motion amplifier experiment artifacts and datasets
+laboratory/motion-amplifier/data/
+laboratory/motion-amplifier/outputs/
