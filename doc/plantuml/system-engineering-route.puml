@@ -1,0 +1,20 @@
+@startuml
+left to right direction
+skinparam defaultTextAlignment center
+rectangle "机械实验对象（电机/齿轮箱模型）" as machine
+rectangle "三轴加速度传感器" as accel
+rectangle "全局相机" as camera
+rectangle "STM32（采集/控制/预处理）" as stm
+rectangle "香橙派/上位机（数据管理与算法处理）" as host
+rectangle "样本库与标签管理" as data
+rectangle "前后端展示与答辩演示" as app
+
+machine --> accel
+machine --> camera
+accel --> stm
+camera --> host
+stm --> host
+host --> data
+data --> host
+host --> app
+@enduml

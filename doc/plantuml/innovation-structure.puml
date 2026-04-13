@@ -1,0 +1,12 @@
+@startuml
+left to right direction
+skinparam defaultTextAlignment center
+rectangle "双测点感知（传感器 + 相机）" as i1
+rectangle "多模态特征融合（增强鲁棒性）" as i2
+rectangle "轻量增量更新（适应新工况）" as i3
+rectangle "系统级闭环实现（采集到展示）" as i4
+
+i1 --> i2
+i2 --> i3
+i3 --> i4
+@enduml

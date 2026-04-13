@@ -1,0 +1,21 @@
+@startuml
+left to right direction
+skinparam defaultTextAlignment center
+rectangle "传感器时序" as sensor
+rectangle "视觉视频 ROI" as vision
+rectangle "角点跟踪与位移重建" as track
+rectangle "滑窗 Welch 特征提取" as feat
+rectangle "单模态基线模型（RF / XGBoost / SVM）" as base
+rectangle "双模态特征融合" as fusion
+rectangle "状态识别输出" as cls
+rectangle "增量更新模块（原型更新 / partial_fit）" as inc
+
+sensor --> feat
+vision --> track
+track --> feat
+feat --> base
+base --> fusion
+fusion --> cls
+cls --> inc
+inc --> cls
+@enduml

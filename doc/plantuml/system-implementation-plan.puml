@@ -1,0 +1,20 @@
+@startuml
+left to right direction
+skinparam defaultTextAlignment center
+node "机械对象" as machine
+node "ADXL345（三轴加速度传感器）" as accel
+node "全局相机" as camera
+node "STM32（采样/控制）" as stm
+database "实验数据与标签库" as db
+node "香橙派/上位机（分析与训练）" as host
+node "可视化界面" as ui
+
+machine --> accel
+machine --> camera
+accel --> stm : 振动采样
+stm --> host : 串口/总线数据
+camera --> host : 视频流
+host --> db : 存储样本/结果
+db --> host : 查询/训练
+host --> ui : 状态结果/频谱/日志
+@enduml
