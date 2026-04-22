@@ -1,32 +1,43 @@
 @startuml
-left to right direction
+top to bottom direction
 skinparam defaultTextAlignment center
-rectangle "视频输入" as v1
-rectangle "ROI 选取" as v2
-rectangle "Shi-Tomasi 角点提取" as v3
-rectangle "LK 光流跟踪/位移重建" as v4
-rectangle "滑窗 Welch 特征" as v5
-rectangle "视觉特征表" as v6
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam rectangle {
+	RoundCorner 12
+}
 
-rectangle "传感器输入" as s1
-rectangle "滤波/去直流/分窗" as s2
-rectangle "时域/频域统计" as s3
-rectangle "传感器特征表" as s4
+together {
+	package "视觉支路" {
+		top to bottom direction
+		rectangle "视频输入\nROI 选取" as v1
+		rectangle "角点跟踪\n位移重建" as v2
+		rectangle "视觉位移时序\n时间戳记录" as v3
 
-rectangle "统一窗口对齐" as f1
-rectangle "融合特征表" as f2
-rectangle "分类与增量更新" as f3
+		v1 --> v2
+		v2 --> v3
+	}
 
-v1 --> v2
-v2 --> v3
-v3 --> v4
-v4 --> v5
-v5 --> v6
-s1 --> s2
-s2 --> s3
-s3 --> s4
-v6 --> f1
-s4 --> f1
-f1 --> f2
-f2 --> f3
+	package "传感器支路" {
+		top to bottom direction
+		rectangle "传感器输入\n时间戳记录" as s1
+		rectangle "滤波 / 去直流\n振动重建" as s2
+		rectangle "传感器时序\n时间戳记录" as s3
+
+		s1 --> s2
+		s2 --> s3
+	}
+}
+
+package "融合与识别" {
+	top to bottom direction
+	rectangle "时间对齐与\n滑窗融合" as f1
+	rectangle "特征提取 / 分类\n增量部署" as f2
+
+	f1 --> f2
+}
+
+v3 --> f1
+s3 --> f1
+v3 -[hidden]-> s3
 @enduml

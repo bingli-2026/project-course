@@ -1,0 +1,29 @@
+@startgantt
+Project starts 2026-04-06
+printscale weekly zoom 4
+scale 1000 width
+
+-- Preliminary Research & Proposal --
+[Literature Review and Topic Refinement] starts 2026-04-06 and ends 2026-04-14
+[Proposal Report and Plan Finalization] starts 2026-04-10 and ends 2026-04-14
+
+-- Design & Basic Implementation --
+[Two-Point Measurement Scheme Design] starts 2026-04-12 and ends 2026-04-27
+[Hardware Assembly and Link Commissioning] starts 2026-04-15 and ends 2026-05-15
+[Vision-based Vibration Measurement and Feature Extraction] starts 2026-04-15 and ends 2026-05-18
+
+-- Midterm Implementation & Validation --
+[Feature Fusion and Baseline Modeling] starts 2026-05-01 and ends 2026-05-24
+[Midterm Documentation and Presentation] starts 2026-05-12 and ends 2026-05-26
+
+-- Final Integration & Refinement --
+[Validation of Incremental Update Strategy] starts 2026-05-20 and ends 2026-06-10
+[System Integration and Results Analysis] starts 2026-06-01 and ends 2026-06-15
+[Final Deliverables and\nDefense Preparation] starts 2026-06-10 and ends 2026-06-17
+
+2026-04-14 is colored in LightSkyBlue
+2026-05-12 is colored in LightSkyBlue
+2026-05-26 is colored in LightSkyBlue
+2026-06-16 is colored in LightSkyBlue
+2026-06-17 is colored in LightSkyBlue
+@endgantt

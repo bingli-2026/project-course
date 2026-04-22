@@ -1,0 +1,24 @@
+@startuml
+skinparam defaultTextAlignment center
+skinparam rectangle {
+		RoundCorner 8
+}
+
+top to bottom direction
+
+together {
+	left to right direction
+	rectangle "Dual-point sensing\n(sensors + camera)" as i1
+	rectangle "Multimodal feature fusion\n(enhanced robustness)" as i2
+	i1 --> i2
+}
+
+together {
+	left to right direction
+	rectangle "System-level closed-loop implementation\n(from collection to display)" as i4
+	rectangle "Lightweight incremental updates\n(adapt to new conditions)" as i3
+	i3 --> i4
+}
+
+i2 --> i3
+@enduml
