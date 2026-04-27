@@ -6,7 +6,11 @@
 **/.mplconfig/
 *.pyc
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
 
 # Motion amplifier experiment artifacts and datasets
-laboratory/motion-amplifier/data/
-laboratory/motion-amplifier/outputs/
+laboratory/legacy/motion-amplifier/data/
+laboratory/legacy/motion-amplifier/outputs/
