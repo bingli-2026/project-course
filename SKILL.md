@@ -23,5 +23,5 @@ python3 scripts/update_doc_context_index.py
 
 ## References
 
-- `.project-skills/doc-context-tracking.md`
+- `scripts/update_doc_context_index.py`
 - `doc/context/key-context-index.md`
