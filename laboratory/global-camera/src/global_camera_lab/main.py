@@ -4,23 +4,19 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from time import perf_counter
 
 import cv2
+
+from .camera import CameraConfig, capture_properties, open_capture, save_frame
 
 
 @dataclass(frozen=True)
 class CameraRequest:
     """Requested capture settings."""
 
-    device: int
-    backend: str
-    width: int | None
-    height: int | None
-    fps: float | None
-    fourcc: str | None
+    config: CameraConfig
     warmup_frames: int
     capture_frames: int
     output_dir: Path
@@ -90,20 +86,20 @@ def parse_args() -> CameraRequest:
     )
 
     args = parser.parse_args()
-    if args.fourcc is not None and len(args.fourcc) != 4:
-        raise ValueError("--fourcc must be exactly 4 characters.")
     if args.warmup_frames < 0:
         raise ValueError("--warmup-frames must be >= 0.")
     if args.capture_frames <= 0:
         raise ValueError("--capture-frames must be > 0.")
 
     return CameraRequest(
-        device=args.device,
-        backend=args.backend,
-        width=args.width,
-        height=args.height,
-        fps=args.fps,
-        fourcc=args.fourcc,
+        config=CameraConfig(
+            device=args.device,
+            backend=args.backend,
+            width=args.width,
+            height=args.height,
+            fps=args.fps,
+            fourcc=args.fourcc,
+        ),
         warmup_frames=args.warmup_frames,
         capture_frames=args.capture_frames,
         output_dir=args.output_dir,
@@ -111,52 +107,11 @@ def parse_args() -> CameraRequest:
     )
 
 
-def backend_flag(backend: str) -> int:
-    """Map the CLI backend choice to an OpenCV backend flag."""
-
-    return cv2.CAP_V4L2 if backend == "v4l2" else cv2.CAP_ANY
-
-
-def configure_capture(capture: cv2.VideoCapture, request: CameraRequest) -> None:
-    """Apply requested camera settings."""
-
-    if request.width is not None:
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, request.width)
-    if request.height is not None:
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, request.height)
-    if request.fps is not None:
-        capture.set(cv2.CAP_PROP_FPS, request.fps)
-    if request.fourcc is not None:
-        capture.set(
-            cv2.CAP_PROP_FOURCC,
-            cv2.VideoWriter_fourcc(*request.fourcc),
-        )
-
-
-def save_frame(frame, output_dir: Path) -> Path:
-    """Persist a captured frame to disk."""
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    frame_path = output_dir / f"snapshot-{timestamp}.png"
-    if not cv2.imwrite(str(frame_path), frame):
-        raise RuntimeError(f"Failed to save frame to {frame_path}")
-    return frame_path
-
-
 def capture_summary(request: CameraRequest) -> CaptureSummary:
     """Open the device, capture frames, and summarize the result."""
 
-    capture = cv2.VideoCapture(request.device, backend_flag(request.backend))
-    if not capture.isOpened():
-        raise RuntimeError(
-            f"Failed to open camera device {request.device} using backend "
-            f"{request.backend}."
-        )
-
+    capture = open_capture(request.config)
     try:
-        configure_capture(capture, request)
-
         for _ in range(request.warmup_frames):
             ok, _ = capture.read()
             if not ok:
@@ -180,9 +135,9 @@ def capture_summary(request: CameraRequest) -> CaptureSummary:
         )
 
         return CaptureSummary(
-            width=int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
-            height=int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            fps=float(capture.get(cv2.CAP_PROP_FPS)),
+            width=capture_properties(capture)[0],
+            height=capture_properties(capture)[1],
+            fps=capture_properties(capture)[2],
             brightness=brightness_total / request.capture_frames,
             capture_fps=request.capture_frames / duration if duration > 0 else 0.0,
             frame_path=frame_path,
@@ -194,14 +149,14 @@ def capture_summary(request: CameraRequest) -> CaptureSummary:
 def print_summary(request: CameraRequest, summary: CaptureSummary) -> None:
     """Print a human-readable capture summary."""
 
-    print(f"Device: {request.device}")
-    print(f"Backend: {request.backend}")
+    print(f"Device: {request.config.device}")
+    print(f"Backend: {request.config.backend}")
     print(
         "Requested: "
-        f"width={request.width or 'default'}, "
-        f"height={request.height or 'default'}, "
-        f"fps={request.fps or 'default'}, "
-        f"fourcc={request.fourcc or 'default'}"
+        f"width={request.config.width or 'default'}, "
+        f"height={request.config.height or 'default'}, "
+        f"fps={request.config.fps or 'default'}, "
+        f"fourcc={request.config.fourcc or 'default'}"
     )
     print(
         "Effective: "

@@ -11,16 +11,30 @@ uv sync
 ## Quick check
 
 ```bash
-uv run global-camera-lab --device 0 --backend v4l2 --save-frame
+uv run global-camera-lab --device 2 --backend v4l2 --save-frame
 ```
 
 This opens the camera, negotiates the requested settings, grabs a few frames, prints the effective camera properties, and saves one snapshot under `captures/`.
+
+## Qt live preview
+
+```bash
+uv run global-camera-qt-preview \
+  --device 2 \
+  --backend v4l2 \
+  --fourcc YUYV \
+  --width 1280 \
+  --height 720 \
+  --fps 60
+```
+
+This opens a live Qt window backed by OpenCV capture. Use the **Save snapshot** button to persist the current frame. `Ctrl+W` closes the window.
 
 ## Higher-rate example
 
 ```bash
 uv run global-camera-lab \
-  --device 0 \
+  --device 2 \
   --backend v4l2 \
   --width 1280 \
   --height 720 \

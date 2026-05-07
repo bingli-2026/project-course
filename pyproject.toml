@@ -2,10 +2,13 @@
 name = "project-course"
 version = "0.1.0"
 requires-python = "==3.10.12"
-dependencies = []
+dependencies = [
+    "opencv-python>=4.13.0.92",
+]
 
 [project.scripts]
 project-course = "project_course.main:main"
+project-course-camera = "project_course.camera.cli:main"
 
 [dependency-groups]
 dev = [

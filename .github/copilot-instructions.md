@@ -53,12 +53,14 @@ Run these from `laboratory/global-camera` for the active camera bring-up project
 ```bash
 uv sync
 uv run python -m global_camera_lab --help
+uv run global-camera-qt-preview --help
 ```
 
 For a real device smoke test:
 
 ```bash
-uv run global-camera-lab --device 0 --backend v4l2 --save-frame
+uv run global-camera-lab --device 2 --backend v4l2 --save-frame
+uv run global-camera-qt-preview --device 2 --backend v4l2 --fourcc YUYV
 ```
 
 Run these from `laboratory/legacy/motion-amplifier` for the archived vision prototype:
@@ -83,14 +85,16 @@ MPLCONFIGDIR=.mplconfig UV_CACHE_DIR=.uv-cache uv run python scripts/analyze_vid
 ## High-level architecture
 
 - `src/project_course/` is the root package. It is intentionally small right now and acts as the stable starting point for code that should follow the pinned Python version and root lint/test workflow.
+- `src/project_course/camera/` is the mainline camera utility package. It holds reusable Linux/V4L2 discovery helpers, OpenCV capture configuration helpers, and a root CLI for probing camera devices.
 - `tests/` is the root automated-test area. Keep new root-level tests here instead of mixing them into the laboratory projects.
 - `assets/hardware/` is the canonical storage location for hardware-related repository assets. The initial structure is:
   - `datasheets/`
   - `wiring/`
   - `calibration/`
   - `reference-images/`
-- `laboratory/global-camera/README.md` documents the intended hardware bring-up workflow: open the camera, negotiate settings, capture frames, and optionally save a snapshot under `captures/`.
-- `laboratory/global-camera/src/global_camera_lab/main.py` is the active CLI entry point for camera smoke testing. It is meant for practical device checks rather than long-term acquisition architecture.
+- `laboratory/global-camera/README.md` documents the intended hardware bring-up workflow: CLI smoke tests plus a Qt live-preview window, with snapshots saved under `captures/`.
+- `laboratory/global-camera/src/global_camera_lab/main.py` is the CLI smoke-test entry point for camera negotiation and frame capture.
+- `laboratory/global-camera/src/global_camera_lab/qt_preview.py` is the Qt live-preview entry point. It reuses the shared OpenCV/V4L2 camera setup and is the fastest way to visually confirm that the device is streaming correctly.
 - `laboratory/legacy/motion-amplifier/scripts/analyze_guitar.py` is the older **single-clip analyzer**. It loads frames, converts to grayscale, tracks Shi-Tomasi corners with pyramidal Lucas-Kanade optical flow, reduces tracks with a median motion signal, then estimates dominant vibration frequency with Welch PSD and saves preview/plot outputs.
 - `laboratory/legacy/motion-amplifier/scripts/analyze_video_stream.py` is the newer **sliding-window feature extractor**. It reuses the same tracking pipeline but emits windowed `vision_*` features to CSV/JSON so the output can later join with sensor features.
 - `laboratory/legacy/motion-amplifier/feature_schema.md` defines the target fused dataset contract: one row per time window, shared identity fields (`sample_id`, `window_index`, `center_time_s`, etc.), `vision_*` columns for camera features, and future `sensor_*` columns for the accelerometer branch.
@@ -102,6 +106,7 @@ MPLCONFIGDIR=.mplconfig UV_CACHE_DIR=.uv-cache uv run python scripts/analyze_vid
 - The root project is pinned to **Python 3.10.12** via `.python-version` and `requires-python == 3.10.12`. Preserve that exact version unless the repository is intentionally migrated.
 - Use **`uv`** for all Python code areas, but treat the root scaffold, `laboratory/global-camera`, and `laboratory/legacy/motion-amplifier` as separate project contexts with their own commands and environments.
 - New root-level Python code should stay **PEP 8-friendly** and pass the configured Ruff checks (`E`, `W`, `F`, `I`) with an 88-character line length.
+- The mainline camera flow is: `uv run project-course-camera list` first, then `uv run project-course-camera probe --device <index> ...` for an actual stream check.
 - Keep hardware-related non-code assets under `assets/hardware/` using the existing category folders instead of scattering them under `doc/` or `laboratory/`.
 - Use `laboratory/global-camera/captures/` for temporary camera snapshots from smoke tests; that directory is intentionally treated as disposable working output.
 - The archived experiment docs consistently set `MPLCONFIGDIR=.mplconfig` and `UV_CACHE_DIR=.uv-cache` so Matplotlib and uv caches stay inside the project instead of polluting the home directory.

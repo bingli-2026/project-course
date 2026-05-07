@@ -4,10 +4,12 @@ version = "0.1.0"
 requires-python = "==3.10.12"
 dependencies = [
     "opencv-python>=4.13.0.92",
+    "pyside6>=6.11.0",
 ]
 
 [project.scripts]
 global-camera-lab = "global_camera_lab.main:main"
+global-camera-qt-preview = "global_camera_lab.qt_preview:main"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]
