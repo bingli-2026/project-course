@@ -25,3 +25,17 @@ uv run project-course-camera probe \
 ```
 
 For the interactive Qt preview window, use `laboratory/global-camera`.
+
+## FastAPI service
+
+Run API in standard mode:
+
+```bash
+uv run project-course-api
+```
+
+Run API in development hot-reload mode:
+
+```bash
+uv run project-course-api-dev
+```
