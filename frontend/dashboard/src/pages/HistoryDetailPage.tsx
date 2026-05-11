@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import FeatureTimeSeriesChart from "../components/FeatureTimeSeriesChart";
 import WindowFeatureTable from "../components/WindowFeatureTable";
-import { deleteSample, getSample } from "../services/api";
-import type { SampleDetail } from "../types/sample";
+import { deleteHistory, getHistory } from "../services/api";
+import type { HistoryDetail } from "../types/api";
 
 const DEFAULT_FIELDS = [
   "vision_dx_peak_hz",
@@ -14,11 +14,11 @@ const DEFAULT_FIELDS = [
   "sensor_az_peak_hz"
 ];
 
-function SampleDetailPage(): JSX.Element {
+function HistoryDetailPage(): JSX.Element {
   const { sampleId } = useParams<{ sampleId: string }>();
   const navigate = useNavigate();
 
-  const [detail, setDetail] = useState<SampleDetail | null>(null);
+  const [detail, setDetail] = useState<HistoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
@@ -26,7 +26,7 @@ function SampleDetailPage(): JSX.Element {
   useEffect(() => {
     if (!sampleId) return;
     setLoading(true);
-    getSample(sampleId)
+    getHistory(sampleId)
       .then((data) => {
         setDetail(data);
         const available = data.rows.length > 0 ? Object.keys(data.rows[0]) : [];
@@ -48,8 +48,8 @@ function SampleDetailPage(): JSX.Element {
   async function handleDelete(): Promise<void> {
     if (!sampleId) return;
     if (!window.confirm(`确认删除样本 ${sampleId}?同时会删除磁盘文件。`)) return;
-    await deleteSample(sampleId);
-    navigate("/samples");
+    await deleteHistory(sampleId);
+    navigate("/history");
   }
 
   if (loading) return <div>加载中...</div>;
@@ -60,7 +60,7 @@ function SampleDetailPage(): JSX.Element {
 
   return (
     <div>
-      <Link to="/samples" style={{ color: "#2563eb", textDecoration: "none" }}>← 返回列表</Link>
+      <Link to="/history" style={{ color: "#2563eb", textDecoration: "none" }}>← 返回历史列表</Link>
       <div style={headerRow}>
         <h1 style={{ margin: "12px 0" }}><code>{meta.sample_id}</code></h1>
         <button onClick={handleDelete} style={btnDanger}>删除样本</button>
@@ -190,4 +190,4 @@ const errorBox: React.CSSProperties = {
   borderRadius: 6
 };
 
-export default SampleDetailPage;
+export default HistoryDetailPage;

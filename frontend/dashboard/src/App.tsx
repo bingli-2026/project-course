@@ -1,25 +1,25 @@
 import { Link, NavLink, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 
-import DashboardPage from "./pages/DashboardPage";
-import SampleDetailPage from "./pages/SampleDetailPage";
-import SamplesListPage from "./pages/SamplesListPage";
+import HistoryDetailPage from "./pages/HistoryDetailPage";
+import HistoryListPage from "./pages/HistoryListPage";
+import LiveDashboardPage from "./pages/LiveDashboardPage";
 
 function App(): JSX.Element {
   return (
     <Router>
-      <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: "#f6f7f9" }}>
+      <div style={{ fontFamily: "sans-serif", minHeight: "100vh", background: "#f5f5f5" }}>
         <header style={headerStyle}>
-          <Link to="/" style={brandStyle}>双模态监测系统</Link>
+          <Link to="/" style={brandStyle}>双模态设备监测系统</Link>
           <nav style={navStyle}>
-            <NavItem to="/">首页</NavItem>
-            <NavItem to="/samples">样本</NavItem>
+            <NavItem to="/">实时监测</NavItem>
+            <NavItem to="/history">历史回放</NavItem>
           </nav>
         </header>
-        <main style={{ padding: "24px", maxWidth: 1200, margin: "0 auto" }}>
+        <main style={{ padding: "16px", maxWidth: 1400, margin: "0 auto" }}>
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/samples" element={<SamplesListPage />} />
-            <Route path="/samples/:sampleId" element={<SampleDetailPage />} />
+            <Route path="/" element={<LiveDashboardPage />} />
+            <Route path="/history" element={<HistoryListPage />} />
+            <Route path="/history/:sampleId" element={<HistoryDetailPage />} />
           </Routes>
         </main>
       </div>
@@ -37,7 +37,8 @@ function NavItem({ to, children }: { to: string; children: React.ReactNode }): J
         padding: "6px 12px",
         borderRadius: 6,
         color: isActive ? "#fff" : "#cbd5e1",
-        background: isActive ? "#2563eb" : "transparent"
+        background: isActive ? "#1677ff" : "transparent",
+        fontSize: 14
       })}
     >
       {children}

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import axios from "axios";
 
-import { uploadSample } from "../services/api";
-import type { IngestErrorBody, SampleMetadata } from "../types/sample";
+import { uploadHistory } from "../services/api";
+import type { HistoryMetadata, IngestErrorBody } from "../types/api";
 
 interface Props {
-  onUploaded: (meta: SampleMetadata) => void;
+  onUploaded: (meta: HistoryMetadata) => void;
   onClose: () => void;
 }
 
@@ -24,7 +24,7 @@ function UploadDialog({ onUploaded, onClose }: Props): JSX.Element {
     setError(null);
     setMissing([]);
     try {
-      const meta = await uploadSample(file);
+      const meta = await uploadHistory(file);
       onUploaded(meta);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 422) {

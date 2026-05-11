@@ -1,9 +1,9 @@
 import ReactECharts from "echarts-for-react";
 
-import type { WindowRow } from "../types/sample";
+import type { HistoryRow } from "../types/api";
 
 interface Props {
-  points: WindowRow[];
+  points: HistoryRow[];
   fields: string[];
   height?: number;
 }

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 
-import type { WindowRow } from "../types/sample";
+import type { HistoryRow } from "../types/api";
 
 interface Props {
-  rows: WindowRow[];
+  rows: HistoryRow[];
 }
 
 const PRIORITY_FIRST = [

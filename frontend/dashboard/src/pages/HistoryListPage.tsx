@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import UploadDialog from "../components/UploadDialog";
-import { listSamples } from "../services/api";
-import type { SampleMetadata } from "../types/sample";
+import { listHistory } from "../services/api";
+import type { HistoryMetadata } from "../types/api";
 
-function SamplesListPage(): JSX.Element {
+function HistoryListPage(): JSX.Element {
   const navigate = useNavigate();
-  const [samples, setSamples] = useState<SampleMetadata[]>([]);
+  const [samples, setSamples] = useState<HistoryMetadata[]>([]);
   const [labelFilter, setLabelFilter] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +17,7 @@ function SamplesListPage(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const data = await listSamples(labelFilter ? { label: labelFilter } : {});
+      const data = await listHistory(labelFilter ? { label: labelFilter } : {});
       setSamples(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -83,7 +83,7 @@ function SamplesListPage(): JSX.Element {
             {samples.map((s) => (
               <tr
                 key={s.sample_id}
-                onClick={() => navigate(`/samples/${s.sample_id}`)}
+                onClick={() => navigate(`/history/${s.sample_id}`)}
                 style={trBody}
               >
                 <td style={tdStyle}><code>{s.sample_id}</code></td>
@@ -106,7 +106,7 @@ function SamplesListPage(): JSX.Element {
           onClose={() => setShowUpload(false)}
           onUploaded={(meta) => {
             setShowUpload(false);
-            navigate(`/samples/${meta.sample_id}`);
+            navigate(`/history/${meta.sample_id}`);
           }}
         />
       )}
@@ -212,4 +212,4 @@ const emptyStyle: React.CSSProperties = {
   textAlign: "center"
 };
 
-export default SamplesListPage;
+export default HistoryListPage;
