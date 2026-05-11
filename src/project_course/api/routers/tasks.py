@@ -31,18 +31,16 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
     status_code=status.HTTP_201_CREATED,
 )
 def create_task(body: CreateTaskRequest) -> TaskResponse:
+    # Auto-stop any active task — creating a new one implies the operator
+    # wants to start fresh, not fight a 409. This keeps "+ 新建任务" a
+    # one-click reset for demos.
     active = get_active_task()
     if active is not None:
-        # Defensive: if the in-memory state references a task that no longer
-        # exists in SQLite (e.g. operator deleted the DB file under a running
-        # backend), treat the in-memory entry as stale instead of blocking.
-        if db.get_task(active.task_id) is None:
-            LIVE_STATE.stop()
+        if db.get_task(active.task_id) is not None:
+            finish_task(status="succeeded")
         else:
-            raise HTTPException(
-                status_code=409,
-                detail="another task is already running; stop it before creating a new one",
-            )
+            # Stale in-memory entry — SQLite has no row for it.
+            LIVE_STATE.stop()
     task_id = f"task-{uuid.uuid4().hex[:12]}"
     start_task(
         task_id=task_id,

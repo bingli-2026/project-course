@@ -41,9 +41,7 @@ function TaskCreateModal({ onCreated, onClose }: Props): JSX.Element {
       await createTask(body);
       onCreated();
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setError("已有任务在运行,请先停止当前任务");
-      } else if (axios.isAxiosError(err)) {
+      if (axios.isAxiosError(err)) {
         setError(err.response?.data?.detail ?? err.message);
       } else {
         setError(String(err));
@@ -57,6 +55,9 @@ function TaskCreateModal({ onCreated, onClose }: Props): JSX.Element {
     <div style={overlayStyle} onClick={onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginTop: 0 }}>新建采样任务</h2>
+        <p style={{ marginTop: 0, color: "#64748b", fontSize: 13 }}>
+          如有任务在运行,创建将自动停止它并开始新任务。
+        </p>
 
         <Field label="设备 ID *">
           <input value={deviceId} onChange={(e) => setDeviceId(e.target.value)} style={inputStyle} />

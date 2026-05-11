@@ -63,8 +63,8 @@ function TaskBar({ overview, windowCount, onTaskCreated, onTaskStopped }: Props)
       <div style={rightGroup}>
         <button
           onClick={() => setShowCreate(true)}
-          disabled={running}
-          style={running ? btnDisabled : btnPrimary}
+          style={btnPrimary}
+          title={running ? "创建会自动停止当前任务" : undefined}
         >
           + 新建任务
         </button>

@@ -67,11 +67,23 @@ def test_task_create_and_get(client: TestClient) -> None:
     assert stop.json()["task_status"] == "succeeded"
 
 
-def test_task_create_conflict_when_already_running(client: TestClient) -> None:
+def test_task_create_auto_stops_previous_task(client: TestClient) -> None:
+    """+ 新建任务 acts as a one-click reset: any running task is force-stopped."""
     first = client.post("/api/v1/tasks", json={"device_id": "rig-test"})
     assert first.status_code == 201
+    first_id = first.json()["task_id"]
+
     second = client.post("/api/v1/tasks", json={"device_id": "rig-test"})
-    assert second.status_code == 409
+    assert second.status_code == 201
+    second_id = second.json()["task_id"]
+    assert second_id != first_id
+
+    # The previous task should be marked succeeded (auto-stopped).
+    first_detail = client.get(f"/api/v1/tasks/{first_id}").json()
+    assert first_detail["task_status"] == "succeeded"
+    # The new task should be the active one.
+    second_detail = client.get(f"/api/v1/tasks/{second_id}").json()
+    assert second_detail["task_status"] == "running"
 
 
 def test_task_windows_after_publish(client: TestClient) -> None:
