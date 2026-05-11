@@ -81,23 +81,45 @@ def _synth_window(window_index: int, task_id: str, profile_name: str) -> dict:
     }
 
 
+NORMAL_DWELL_WINDOWS = 50  # the simulator starts every task in 'normal' for ~25s
+
+
 async def _simulator_loop() -> None:
-    """Continuously produce synthetic windows when a task is active."""
+    """Continuously produce synthetic windows when a task is active.
+
+    Narrative for demos: every fresh task starts in `normal` for ~50 windows
+    (about 25 s at the default 0.5 s tick), then begins cycling through the
+    fault profiles. This avoids screenshots where the dashboard immediately
+    shouts "不对中" — the operator first sees the device behaving normally,
+    then watches the state change as the simulator transitions.
+    """
     window_index = 0
     sync_tick = 0
     profile_name = "normal"
-    profile_remaining = random.randint(20, 40)
+    profile_remaining = NORMAL_DWELL_WINDOWS
+    in_normal_intro = True
     while True:
         try:
             active = LIVE_STATE.active_task
             if active is None:
                 window_index = 0
                 sync_tick = 0
+                profile_name = "normal"
+                profile_remaining = NORMAL_DWELL_WINDOWS
+                in_normal_intro = True
                 await asyncio.sleep(settings.simulator_tick_s)
                 continue
 
             if profile_remaining <= 0:
-                profile_name = random.choice(list(PROFILES.keys()))
+                if in_normal_intro:
+                    # First non-normal profile after the intro dwell.
+                    in_normal_intro = False
+                    profile_name = random.choice([p for p in PROFILES if p != "normal"])
+                else:
+                    # After the intro, cycle through any profile; bias normal a bit
+                    # so the dashboard isn't permanently red.
+                    weights = [3 if p == "normal" else 1 for p in PROFILES]
+                    profile_name = random.choices(list(PROFILES.keys()), weights=weights, k=1)[0]
                 profile_remaining = random.randint(20, 50)
             else:
                 profile_remaining -= 1

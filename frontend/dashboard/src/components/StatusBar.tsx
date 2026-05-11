@@ -21,6 +21,11 @@ function StatusBar({ overview, lastRefreshAt, backendDown }: Props): JSX.Element
       <Item label="对齐率" value={aligned !== null ? `${(aligned * 100).toFixed(0)}%` : "—"} warn={alignedWarn} />
       <Divider />
       <Item
+        label="漂移"
+        value={overview?.sync_drift_ppm != null ? `${overview.sync_drift_ppm.toFixed(1)} ppm` : "—"}
+      />
+      <Divider />
+      <Item
         label="窗口数"
         value={overview ? String(overview.effective_window_count) : "—"}
       />

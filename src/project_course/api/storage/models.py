@@ -134,6 +134,7 @@ class DashboardOverview(BaseModel):
     active_model_version: str | None = None
     task_success_rate_24h: float = 1.0
     sync_offset_ms_p95: float | None = None
+    sync_drift_ppm: float | None = None
     aligned_window_ratio: float | None = None
     effective_window_count: int = 0
     latest_window_index: int | None = None

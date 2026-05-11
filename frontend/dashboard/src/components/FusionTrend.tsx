@@ -52,8 +52,14 @@ function buildOption(windows: WindowSample[]): Record<string, unknown> {
   return {
     tooltip: { trigger: "axis" },
     legend: { top: 0, data: ["融合主频", "置信度"] },
-    grid: { left: 60, right: 60, bottom: 36, top: 32 },
-    xAxis: { type: "category", data: indexAxis, name: "window" },
+    grid: { left: 60, right: 60, bottom: 56, top: 32 },
+    xAxis: {
+      type: "category",
+      data: indexAxis,
+      name: "window",
+      nameLocation: "middle",
+      nameGap: 28
+    },
     yAxis: [
       { type: "value", name: "Hz", position: "left" },
       { type: "value", name: "confidence", position: "right", min: 0, max: 1 }

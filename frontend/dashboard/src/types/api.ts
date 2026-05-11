@@ -105,6 +105,7 @@ export interface DashboardOverview {
   active_model_version: string | null;
   task_success_rate_24h: number;
   sync_offset_ms_p95: number | null;
+  sync_drift_ppm: number | null;
   aligned_window_ratio: number | null;
   effective_window_count: number;
   latest_window_index: number | null;
