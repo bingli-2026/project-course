@@ -98,7 +98,7 @@ def ingest_file(path: Path) -> IngestResult:
         else path.name
     )
 
-    db.upsert_sample(
+    db.upsert_history(
         {
             "sample_id": sample_id,
             "label": label,

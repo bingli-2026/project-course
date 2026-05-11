@@ -1,4 +1,4 @@
-"""Tests for the feature-file ingest pipeline."""
+"""Tests for the feature-file ingest pipeline (offline history)."""
 
 from __future__ import annotations
 
@@ -42,6 +42,7 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     db_path = tmp_path / "test.sqlite3"
     monkeypatch.setattr(config_module.settings, "data_dir", data_dir)
     monkeypatch.setattr(config_module.settings, "db_path", db_path)
+    monkeypatch.setattr(config_module.settings, "simulator_enabled", False)
     db.init_db()
     return data_dir
 
@@ -59,7 +60,7 @@ def test_ingest_valid_csv(isolated_data_dir: Path) -> None:
     assert result.has_sensor is False
     assert result.label == "normal"
 
-    row = db.get_sample("s001")
+    row = db.get_history("s001")
     assert row is not None
     assert row["window_count"] == 4
     assert row["has_vision"] == 1
@@ -97,12 +98,10 @@ def test_scan_directory_skips_invalid_files(isolated_data_dir: Path) -> None:
     results = scan_directory()
 
     assert {r.sample_id for r in results} == {"good"}
-    assert db.get_sample("good") is not None
+    assert db.get_history("good") is not None
 
 
-def test_upload_endpoint_round_trip(
-    isolated_data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_history_upload_round_trip(isolated_data_dir: Path) -> None:
     df = pd.DataFrame([_vision_row("up001", i, i * 0.25) for i in range(2)])
     csv_path = isolated_data_dir.parent / "upload.csv"
     df.to_csv(csv_path, index=False)
@@ -112,7 +111,7 @@ def test_upload_endpoint_round_trip(
     with TestClient(create_app()) as client:
         with csv_path.open("rb") as fh:
             response = client.post(
-                "/api/v1/samples",
+                "/api/v1/history",
                 files={"file": ("up001.csv", fh, "text/csv")},
             )
         assert response.status_code == 201, response.text
@@ -121,18 +120,16 @@ def test_upload_endpoint_round_trip(
         assert meta["window_count"] == 2
         assert meta["has_vision"] is True
 
-        listing = client.get("/api/v1/samples").json()
+        listing = client.get("/api/v1/history").json()
         assert any(s["sample_id"] == "up001" for s in listing)
 
-        delete_response = client.delete("/api/v1/samples/up001")
+        delete_response = client.delete("/api/v1/history/up001")
         assert delete_response.status_code == 204
-        assert client.get("/api/v1/samples/up001").status_code == 404
+        assert client.get("/api/v1/history/up001").status_code == 404
         assert not (isolated_data_dir / "up001.csv").exists()
 
 
-def test_upload_endpoint_rejects_invalid_schema(
-    isolated_data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_history_upload_rejects_invalid_schema(isolated_data_dir: Path) -> None:
     bad_path = isolated_data_dir.parent / "bad.csv"
     pd.DataFrame([{"sample_id": "x", "center_time_s": 0.0}]).to_csv(bad_path, index=False)
 
@@ -141,19 +138,16 @@ def test_upload_endpoint_rejects_invalid_schema(
     with TestClient(create_app()) as client:
         with bad_path.open("rb") as fh:
             response = client.post(
-                "/api/v1/samples",
+                "/api/v1/history",
                 files={"file": ("bad.csv", fh, "text/csv")},
             )
         assert response.status_code == 422
         body = response.json()
         assert "window_index" in body["detail"]["missing_columns"]
-        # The rejected file should not have leaked into the data dir
         assert not (isolated_data_dir / "bad.csv").exists()
 
 
-def test_get_sample_endpoint_returns_rows(
-    isolated_data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_history_detail_returns_rows(isolated_data_dir: Path) -> None:
     df = pd.DataFrame([_vision_row("ep001", i, i * 0.5) for i in range(3)])
     df.to_csv(isolated_data_dir / "ep001.csv", index=False)
     scan_directory()
@@ -161,7 +155,7 @@ def test_get_sample_endpoint_returns_rows(
     from project_course.api.app import create_app
 
     with TestClient(create_app()) as client:
-        response = client.get("/api/v1/samples/ep001")
+        response = client.get("/api/v1/history/ep001")
         assert response.status_code == 200
         body = response.json()
         assert body["metadata"]["sample_id"] == "ep001"
@@ -169,7 +163,7 @@ def test_get_sample_endpoint_returns_rows(
         assert body["rows"][0]["vision_dx_peak_hz"] == pytest.approx(12.5, abs=1e-6)
 
         ts = client.get(
-            "/api/v1/samples/ep001/timeseries",
+            "/api/v1/history/ep001/timeseries",
             params={"fields": ["vision_dx_peak_hz", "vision_dy_peak_hz"]},
         )
         assert ts.status_code == 200

@@ -1,4 +1,9 @@
-"""Sample ingest, listing, and detail endpoints."""
+"""Offline history (renamed from v0 /samples) — /api/v1/history/*.
+
+This route serves CSV/Parquet files dropped into `data/samples/`. Useful for
+demo rehearsals when real hardware isn't connected. Not used by the live
+dashboard.
+"""
 
 from __future__ import annotations
 
@@ -19,12 +24,12 @@ from project_course.api.storage.ingest import (
     resolve_stored_path,
 )
 from project_course.api.storage.models import (
-    SampleDetail,
-    SampleMetadata,
-    SampleTimeseries,
+    HistoryDetail,
+    HistoryMetadata,
+    HistoryTimeseries,
 )
 
-router = APIRouter(prefix="/api/v1/samples", tags=["samples"])
+router = APIRouter(prefix="/api/v1/history", tags=["history"])
 
 DEFAULT_TIMESERIES_FIELDS = (
     "vision_dx_peak_hz",
@@ -36,7 +41,6 @@ DEFAULT_TIMESERIES_FIELDS = (
 
 
 def _df_records(df, columns: list[str]) -> list[dict[str, Any]]:
-    """Convert a DataFrame slice to JSON-safe dict records."""
     subset = df[columns]
     records = subset.to_dict(orient="records")
     for record in records:
@@ -48,11 +52,11 @@ def _df_records(df, columns: list[str]) -> list[dict[str, Any]]:
 
 @router.post(
     "",
-    summary="Upload a feature CSV/Parquet file",
-    response_model=SampleMetadata,
+    summary="Upload an offline feature file",
+    response_model=HistoryMetadata,
     status_code=status.HTTP_201_CREATED,
 )
-async def upload_sample(file: UploadFile = File(...)) -> SampleMetadata:
+async def upload_history(file: UploadFile = File(...)) -> HistoryMetadata:
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
         raise HTTPException(
@@ -77,88 +81,74 @@ async def upload_sample(file: UploadFile = File(...)) -> SampleMetadata:
             },
         ) from exc
 
-    row = db.get_sample(_sample_id_from_target(target))
+    df = read_feature_file(target)
+    sample_id = str(df["sample_id"].iloc[0])
+    row = db.get_history(sample_id)
     if row is None:
         raise HTTPException(
             status_code=500,
             detail="ingest succeeded but metadata row not found",
         )
-    return SampleMetadata.from_row(row)
+    return HistoryMetadata.from_row(row)
 
 
-def _sample_id_from_target(target: Path) -> str:
-    """Recover sample_id by re-reading the file once after ingest."""
-    df = read_feature_file(target)
-    return str(df["sample_id"].iloc[0])
-
-
-@router.delete(
-    "/{sample_id}",
-    summary="Delete a sample (file + metadata row)",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def delete_sample(sample_id: str) -> None:
-    row = db.get_sample(sample_id)
+@router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_history(sample_id: str) -> None:
+    row = db.get_history(sample_id)
     if row is None:
-        raise HTTPException(status_code=404, detail=f"sample {sample_id} not found")
+        raise HTTPException(status_code=404, detail=f"history {sample_id} not found")
     file_path = resolve_stored_path(row["file_path"])
     file_path.unlink(missing_ok=True)
-    db.delete_sample(sample_id)
+    db.delete_history(sample_id)
 
 
-@router.get("", summary="List ingested samples", response_model=list[SampleMetadata])
-def list_samples(
+@router.get("", summary="List ingested history samples", response_model=list[HistoryMetadata])
+def list_history(
     label: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-) -> list[SampleMetadata]:
-    rows = db.list_samples(label=label, limit=limit, offset=offset)
-    return [SampleMetadata.from_row(row) for row in rows]
+) -> list[HistoryMetadata]:
+    rows = db.list_history(label=label, limit=limit, offset=offset)
+    return [HistoryMetadata.from_row(r) for r in rows]
 
 
 @router.get(
     "/{sample_id}",
-    summary="Get sample metadata and all window-level rows",
-    response_model=SampleDetail,
+    summary="Get history metadata and all window rows",
+    response_model=HistoryDetail,
 )
-def get_sample(sample_id: str) -> SampleDetail:
-    row = db.get_sample(sample_id)
+def get_history(sample_id: str) -> HistoryDetail:
+    row = db.get_history(sample_id)
     if row is None:
-        raise HTTPException(status_code=404, detail=f"sample {sample_id} not found")
-    metadata = SampleMetadata.from_row(row)
+        raise HTTPException(status_code=404, detail=f"history {sample_id} not found")
+    metadata = HistoryMetadata.from_row(row)
     file_path = resolve_stored_path(row["file_path"])
     if not file_path.exists():
-        raise HTTPException(
-            status_code=410,
-            detail=f"sample file missing on disk: {file_path}",
-        )
+        raise HTTPException(status_code=410, detail=f"file missing on disk: {file_path}")
     df = read_feature_file(file_path)
-    return SampleDetail(metadata=metadata, rows=_df_records(df, list(df.columns)))
+    return HistoryDetail(metadata=metadata, rows=_df_records(df, list(df.columns)))
 
 
 @router.get(
     "/{sample_id}/timeseries",
-    summary="Get window-level timeseries for the requested fields",
-    response_model=SampleTimeseries,
+    summary="Window-level timeseries for selected feature fields",
+    response_model=HistoryTimeseries,
 )
-def get_timeseries(
+def get_history_timeseries(
     sample_id: str,
     fields: list[str] | None = Query(default=None),
-) -> SampleTimeseries:
-    row = db.get_sample(sample_id)
+) -> HistoryTimeseries:
+    row = db.get_history(sample_id)
     if row is None:
-        raise HTTPException(status_code=404, detail=f"sample {sample_id} not found")
+        raise HTTPException(status_code=404, detail=f"history {sample_id} not found")
     file_path = resolve_stored_path(row["file_path"])
     if not file_path.exists():
-        raise HTTPException(
-            status_code=410,
-            detail=f"sample file missing on disk: {file_path}",
-        )
+        raise HTTPException(status_code=410, detail=f"file missing on disk: {file_path}")
     df = read_feature_file(file_path)
     requested = list(fields) if fields else list(DEFAULT_TIMESERIES_FIELDS)
     available = [f for f in requested if f in df.columns]
     columns = ["center_time_s", *available]
-    return SampleTimeseries(
+    return HistoryTimeseries(
         sample_id=sample_id,
         fields=available,
         points=_df_records(df.sort_values("center_time_s"), columns),
