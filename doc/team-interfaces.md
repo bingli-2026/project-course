@@ -71,10 +71,10 @@ The roles below come from the proposal's personnel section. If anyone disagrees 
 - **Hands off to**: HE Xinhao (drops file into `data/samples/`) and YANG Xuanzhi (same file)
 - **Where in repo**: visual processing scripts under `laboratory/` (current location) — long-term should move to `src/project_course/vision/`
 
-### Sensor processing — UNASSIGNED (see Open Question §1 below)
-- **Produces**: per-sample CSV with `sensor_*` columns
-- **Consumes**: STM32 → Orange Pi sensor stream
-- **Status**: `feature_schema.md` says "sensor branch extraction: pending". Until someone owns this, the dashboard will show `has_sensor: false` for every real sample.
+### Sensor processing — HE Xinhao + YANG Xuanzhi (co-owned, resolved 2026-05-11)
+- **Produces**: in-process `WindowSample` payloads with `sensor_*` fields populated, pushed via `live.publish_window`
+- **Consumes**: STM32 → Orange Pi sensor stream surfaced by YE Bingli's acquisition driver
+- **Where in repo**: target `src/project_course/fusion/imu_features.py` (planned in `specs/.../tasks.md` T018)
 
 ### YANG Xuanzhi — Model training
 - **Produces**: trained model artefacts (NOT served by the web BE for the May 26 milestone — runs offline / on edge per HE Xinhao's clarification on 2026-05-10)
@@ -118,18 +118,24 @@ The roles below come from the proposal's personnel section. If anyone disagrees 
 
 ---
 
-## Open Questions (Block Coordination)
+## Resolved Decisions (Team chat, 2026-05-11)
 
-These are the things that, if left unanswered, will cause rework. Tagged for the team chat:
+All five blocking questions are answered. Originals tracked in [`team-alignment-questions.md`](team-alignment-questions.md) (archived).
 
-1. **Who owns sensor-side feature extraction?** `feature_schema.md` declares 30+ `sensor_*` columns but no team member's role explicitly covers it. Needed by ~2026-05-19 to leave time for fusion before midterm.
+1. **Sensor-side feature extraction owner** — HE Xinhao + YANG Xuanzhi (co-ownership, same Python process as the web backend). Updates `team-interfaces.md` above: sensor processing is no longer "TBD".
 
-2. **Is YE Bingli's "back-end driver" the device driver or the web BE?** If the web BE — there is overlap with HE Xinhao's work and we need to split it. (Working assumption above: device driver only.)
+2. **YE Bingli's "back-end driver"** — confirmed = **device-side acquisition driver** (STM32 ↔ Orange Pi data link, plus camera ingestion). NOT the web backend. YANG Zhe owns the hardware-to-Python interface above the STM32.
 
-3. **Where does YANG Xuanzhi's model run for the midterm demo?** HE Xinhao's working assumption (per 2026-05-10 conversation) is that inference runs on the edge and the web dashboard is display-only. If the model should actually be served from the web BE, the data contract needs `predicted_label` to be required and the BE needs new routes.
+3. **Model serving for midterm demo** — model runs on the **edge node (Orange Pi)** in the same Python process as the web backend. No separate gRPC/REST hop for midterm. Later upgrade to a standalone model service is possible without changing the data contract.
 
-4. **Label vocabulary** — is `normal / unbalance / loose / misaligned / unknown` (per `data-contract.md`) the agreed set? The dataset and model accuracy depend on this being closed and stable.
+4. **Label vocabulary** — adopted: `normal / unbalance / loose / misaligned / unknown`. Closed set, lowercase ASCII, strict spelling. Any extension goes through a versioned PR; no main vocabulary changes before midterm. See [`data-contract.md`](data-contract.md) §6.
 
-5. **Window length** — is `window_duration_s` fixed at 0.5s for both modalities? `doc/context.md` mentions sliding windows but doesn't pin a number. Producers must agree before generating any "real" data, otherwise vision and sensor rows can't be fused.
+5. **Window length** — `window_size_s = 0.5`, `window_hop_s = 0.25`. Both modalities share this. See [`data-contract.md`](data-contract.md) §7. The web backend doesn't persist raw sliding-window arrays; features are computed on the edge and pushed into the web BE via `live.publish_window`.
 
-A drop-in message you can paste into the team chat to resolve these is in [`team-alignment-questions.md`](team-alignment-questions.md).
+## Updated Per-Person Contract Deltas
+
+The team chat answers change three lines in §"Per-Person Contract" above:
+
+- **Sensor processing — UNASSIGNED** → now jointly owned by HE Xinhao + YANG Xuanzhi, runs in-process with the web BE on the Orange Pi.
+- **YANG Xuanzhi — Model training** → also responsible for **model inference at edge runtime** in the same Python process. Predictions are pushed back into the live buffer via `live.publish_window({..., "predicted_state": ..., "prediction_confidence": ...})` — no separate HTTP service for midterm.
+- **HE Xinhao — Web frontend & backend** → web BE now exposes `live.publish_window` and `live.record_sync_quality` as the in-process API for feature/model code; remains read-only consumer of the buffer for HTTP routes.

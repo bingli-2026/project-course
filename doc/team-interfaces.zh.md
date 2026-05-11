@@ -69,10 +69,10 @@
 - **交付给**:贺鑫皓(把文件丢进 `data/samples/`)+ 杨炫志(同一份文件)
 - **仓库位置**:视觉处理脚本当前在 `laboratory/` 下;长期应迁移到 `src/project_course/vision/`
 
-### 传感器处理 — 暂无人接手(见下方 Open Q §1)
-- **产出**:每个样本一个 CSV,包含 `sensor_*` 列
-- **消费**:STM32 → Orange Pi 的传感器数据流
-- **现状**:`feature_schema.md` 写明"sensor branch extraction: pending"。在有人接手之前,仪表盘上每个真实样本的 `has_sensor` 都会是 `false`。
+### 传感器处理 — 贺鑫皓 + 杨炫志(2026-05-11 确认共同负责)
+- **产出**:进程内的 `WindowSample` payload,`sensor_*` 字段已填,通过 `live.publish_window` 推送
+- **消费**:冶秉礼的采集驱动产出的 STM32 → 香橙派传感器流
+- **仓库位置**:目标在 `src/project_course/fusion/imu_features.py`(`specs/.../tasks.md` T018 已规划)
 
 ### 杨炫志 — 模型训练
 - **产出**:训练好的模型文件(根据 2026-05-10 与贺鑫皓的澄清,**不**由 Web 后端提供推理服务;模型跑在边缘端)
@@ -116,18 +116,24 @@
 
 ---
 
-## Open Questions(阻塞协作)
+## 已决议事项(2026-05-11 群里答复)
 
-下面 5 件事,如果不答清楚就会导致返工。已经放进群消息里准备发了:
+5 个阻塞问题全部答完。原始问题留存在 [`team-alignment-questions.zh.md`](team-alignment-questions.zh.md)(已归档)。
 
-1. **谁负责传感器侧的特征提取?** `feature_schema.md` 声明了 30+ 个 `sensor_*` 列,但没人的角色明确包含这个。建议在 2026-05-19 之前产出第一份传感器 CSV,这样还有时间做融合再到中期。
+1. **传感器侧特征提取由谁做?** —— **贺鑫皓 + 杨炫志 共同拥有**,跑在 Web 后端同一个 Python 进程。上面 §"传感器处理 — 暂无人接手"那一节已经过期。
 
-2. **冶秉礼的 "back-end driver" 是设备驱动还是 Web 后端?** 如果是 Web 后端 —— 和贺鑫皓的工作有重叠,需要重新切分。(当前假设:仅设备驱动。)
+2. **冶秉礼的 "back-end driver"** —— 确认是**设备侧采集驱动**(STM32 ↔ 香橙派数据链 + 相机接入),**不是** Web 后端。STM32 之上到 Python 的接口由杨喆负责。
 
-3. **杨炫志的模型在中期演示时跑在哪?** 贺鑫皓的工作假设(基于 2026-05-10 的对话):推理跑在边缘端,Web 仪表盘只做展示。如果模型其实要由 Web 后端来跑,数据契约里 `predicted_label` 就要变成必填,后端还得加新路由。
+3. **中期演示模型部署在哪** —— **边缘节点(香橙派)**,和 Web 后端在同一 Python 进程内。中期不做独立的 gRPC/REST 服务。后续要独立部署也可以,数据契约不会变。
 
-4. **Label 词表**是 `normal / unbalance / loose / misaligned / unknown`(见 `data-contract.zh.md`)吗?数据集和模型准确率都依赖于这个集合是闭合且稳定的。
+4. **Label 词表** —— 采用 `normal / unbalance / loose / misaligned / unknown`。闭集,小写 ASCII,严格拼写。扩展走版本化 PR,中期前不改主词表。详见 [`data-contract.zh.md`](data-contract.zh.md) §6。
 
-5. **窗口长度**两边都固定 0.5s 吗?`doc/context.md` 提了滑窗但没定数值。生产方必须在生成"真实"数据之前商量好,否则 vision 和 sensor 行没法融合。
+5. **窗口长度** —— `window_size_s = 0.5`,`window_hop_s = 0.25`。两种模态共用。详见 [`data-contract.zh.md`](data-contract.zh.md) §7。Web 后端不持久化原始滑窗数组;特征在边缘端计算后通过 `live.publish_window` 推到 Web BE。
 
-可以直接复制到群里的对齐消息见 [`team-alignment-questions.zh.md`](team-alignment-questions.zh.md)。
+## 角色契约的变更
+
+群里答复让上面"每人契约"小节有三处变动:
+
+- **传感器处理 — 暂无人接手** → 现在由**贺鑫皓 + 杨炫志共同负责**,在香橙派上和 Web BE 同进程
+- **杨炫志 — 模型训练** → 还负责**边缘端模型推理**,在同一 Python 进程内。预测结果通过 `live.publish_window({..., "predicted_state": ..., "prediction_confidence": ...})` 写回实时 buffer,中期不走独立 HTTP 服务
+- **贺鑫皓 — Web 前后端** → Web BE 把 `live.publish_window` 和 `live.record_sync_quality` 作为给特征 / 模型代码用的进程内 API 暴露出来;HTTP 路由仍然只是 buffer 的只读消费方

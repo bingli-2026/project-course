@@ -2,6 +2,18 @@
 
 > 英文版本:[`team-alignment-questions.md`](team-alignment-questions.md) (英文版用于正式记录,中文版方便直接发群里)
 
+> **状态:已解决(2026-05-11)**。5 个问题群里都答完了。结论记录在 [`team-interfaces.zh.md`](team-interfaces.zh.md) §"已决议事项",并反映到 [`data-contract.zh.md`](data-contract.zh.md) §6(label 词表)和 §7(窗口参数)。本文保留作为决策过程的历史记录。
+>
+> 答复摘要:
+>
+> | # | 问题 | 答复 |
+> |---|---|---|
+> | 1 | 传感器侧特征提取由谁做? | 贺鑫皓 + 杨炫志(共同拥有,和 Web BE 同进程) |
+> | 2 | 冶秉礼的 "back-end driver" 是设备驱动还是 Web 后端? | 仅设备侧采集驱动 |
+> | 3 | 中期演示模型在哪跑? | 边缘端(香橙派),与 Web BE 同 Python 进程 |
+> | 4 | Label 词表? | `normal / unbalance / loose / misaligned / unknown`(闭集) |
+> | 5 | 窗口长度? | `window_size_s = 0.5`,`window_hop_s = 0.25` |
+
 把下面的消息复制粘贴到群里。目的是在视觉 / 传感器 / 模型 / Web 各支线分头跑得太远之前,**先锁住为数不多的几个关键决定**。
 
 **目标不是**在群里把整个系统设计一遍 —— 开题报告里大部分已经设计好了。**目标是**关掉那几个再悬空两周就会导致返工的歧义点。

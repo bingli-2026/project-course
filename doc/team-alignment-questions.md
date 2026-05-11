@@ -2,6 +2,18 @@
 
 > 中文版本: [`team-alignment-questions.zh.md`](team-alignment-questions.zh.md) (Paste the Chinese one into the group chat; this English copy is for the formal record.)
 
+> **Status: RESOLVED (2026-05-11)**. All five questions answered by the team. The resolutions are recorded in [`team-interfaces.md`](team-interfaces.md) §"Resolved Decisions" and reflected in [`data-contract.md`](data-contract.md) §6 (label set) and §7 (window params). This file is kept as the historical record of how the decisions were framed.
+>
+> Summary of resolutions:
+>
+> | # | Question | Resolution |
+> |---|---|---|
+> | 1 | Who owns sensor-side feature extraction? | HE Xinhao + YANG Xuanzhi (co-owned, in-process with web BE) |
+> | 2 | Is YE Bingli's "back-end driver" the device driver or web BE? | Device-side acquisition driver only |
+> | 3 | Where does the model run for midterm? | Edge (Orange Pi), same Python process as web BE |
+> | 4 | Label vocabulary? | `normal / unbalance / loose / misaligned / unknown` (closed) |
+> | 5 | Window length? | `window_size_s = 0.5`, `window_hop_s = 0.25` |
+
 
 Copy-paste the message below into the group chat. It lists the small number of decisions the team must lock down before each branch (vision / sensor / model / web) goes too far in a direction that's incompatible with the others.
 
