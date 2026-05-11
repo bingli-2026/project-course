@@ -19,6 +19,12 @@ from project_course.api.storage.ingest import scan_directory
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db.init_db()
+    orphaned = db.fail_orphaned_running_tasks()
+    if orphaned:
+        import logging
+        logging.getLogger(__name__).warning(
+            "marked %d orphaned running task(s) as failed on startup", orphaned,
+        )
     scan_directory()  # populate offline history from data/samples/ on startup
     async with simulator_lifespan():
         yield

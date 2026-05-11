@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, status
 
 from project_course.api.config import settings
-from project_course.api.live import finish_task, get_active_task, start_task
+from project_course.api.live import LIVE_STATE, finish_task, get_active_task, start_task
 from project_course.api.storage import db
 from project_course.api.storage.models import (
     AxisSpectrum,
@@ -31,11 +31,18 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
     status_code=status.HTTP_201_CREATED,
 )
 def create_task(body: CreateTaskRequest) -> TaskResponse:
-    if get_active_task() is not None:
-        raise HTTPException(
-            status_code=409,
-            detail="another task is already running; stop it before creating a new one",
-        )
+    active = get_active_task()
+    if active is not None:
+        # Defensive: if the in-memory state references a task that no longer
+        # exists in SQLite (e.g. operator deleted the DB file under a running
+        # backend), treat the in-memory entry as stale instead of blocking.
+        if db.get_task(active.task_id) is None:
+            LIVE_STATE.stop()
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail="another task is already running; stop it before creating a new one",
+            )
     task_id = f"task-{uuid.uuid4().hex[:12]}"
     start_task(
         task_id=task_id,

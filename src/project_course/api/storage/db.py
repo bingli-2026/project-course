@@ -88,6 +88,28 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
 
 
+def fail_orphaned_running_tasks() -> int:
+    """Mark any task still in 'running' status as 'failed' on backend startup.
+
+    Backend restarts (intentional or crash) leave the SQLite row in `running`
+    even though the in-memory LIVE_STATE is wiped. Without this sweep, the next
+    create_task call sees no in-memory active task (so 409 isn't raised) but
+    /dashboard/overview happily reports a stale running task. Best to fail
+    them explicitly so the operator sees what happened.
+    """
+    with connect() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE tasks
+               SET task_status   = 'failed',
+                   finished_at   = COALESCE(finished_at, datetime('now')),
+                   error_message = COALESCE(error_message, 'backend restarted while task was running')
+             WHERE task_status = 'running'
+            """
+        )
+        return cursor.rowcount
+
+
 # --------------------------- tasks -----------------------------------------
 
 def insert_task(row: dict[str, Any]) -> None:
