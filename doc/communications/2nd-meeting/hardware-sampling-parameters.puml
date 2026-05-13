@@ -1,0 +1,33 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam shadowing false
+skinparam roundCorner 10
+left to right direction
+
+title Hardware Pipeline and Sampling Parameters
+
+actor "Monitored Object" as object
+cloud "UVC Camera\nYUY2 160x140@420fps" as cam
+cloud "STM32 IMU\n6-axis @1680Hz" as imu
+cloud "USB CDC\n921600 bps" as cdc
+node "Orange Pi\nCapture Service" as opi
+
+rectangle "Key Parameters" as params {
+  note as n1
+  Camera: 160x140, 420fps, YUY2
+  IMU: ax/ay/az + gx/gy/gz, 1680Hz
+  Rate ratio: IMU:CAM = 4:1
+  Window: 0.25s / hop 0.05s
+  Optional stable mode: 1.0s / 0.5s
+  end note
+}
+
+object --> cam : Visible vibration/motion changes
+object --> imu : Inertial vibration response
+cam --> opi : Video frame stream
+imu --> cdc : Sample packets
+cdc --> opi : Serial data stream
+
+@enduml

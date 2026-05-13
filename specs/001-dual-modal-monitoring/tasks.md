@@ -13,11 +13,11 @@
 
 **Purpose**: 建立后端融合模块与前端大屏基础骨架
 
-- [ ] T001 创建主线融合与服务目录结构 `src/project_course/fusion/`、`src/project_course/services/`、`src/project_course/api/routers/`
+- [X] T001 创建主线融合与服务目录结构 `src/project_course/fusion/`、`src/project_course/services/`、`src/project_course/api/routers/`
 - [ ] T002 创建前端大屏工程骨架 `frontend/dashboard/package.json`、`frontend/dashboard/vite.config.ts`、`frontend/dashboard/tsconfig.json`
 - [ ] T003 [P] 初始化前端入口文件 `frontend/dashboard/src/main.tsx` 和 `frontend/dashboard/src/App.tsx`
-- [ ] T004 [P] 新增采样与同步阈值配置 `src/project_course/api/config.py`（R²、超时、窗口默认值、增量阈值）
-- [ ] T005 在 `pyproject.toml` 增补后端依赖与开发脚本（融合模块、测试分组）
+- [X] T004 [P] 新增采样与同步阈值配置 `src/project_course/api/config.py`（R²、超时、窗口默认值、增量阈值）
+- [X] T005 在 `pyproject.toml` 增补后端依赖与开发脚本（融合模块、测试分组）
 
 ---
 
@@ -27,14 +27,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 定义与 `feature_schema` 对齐的窗口特征模型 `src/project_course/fusion/schema.py`
-- [ ] T007 实现任务与模型版本持久化层 `src/project_course/services/task_store.py` 与 `src/project_course/services/model_registry.py`
-- [ ] T008 实现 STM32 协议握手与数据包解析 `src/project_course/services/imu_protocol.py`
-- [ ] T009 实现 tick unwrap 与线性拟合同步核心 `src/project_course/fusion/time_sync.py`
-- [ ] T010 实现采样编排基础骨架并复用现有 camera 模块 `src/project_course/services/capture_service.py`
-- [ ] T011 实现统一错误码与恢复动作映射 `src/project_course/services/error_codes.py`
-- [ ] T012 [P] 实现 API 基础路由骨架 `src/project_course/api/routers/tasks.py`、`src/project_course/api/routers/dashboard.py`、`src/project_course/api/routers/models.py`
-- [ ] T013 [P] 建立接口契约测试骨架 `tests/contract/test_api_contract.py`
+- [X] T006 定义与 `feature_schema` 对齐的窗口特征模型 `src/project_course/fusion/schema.py`
+- [X] T007 实现任务与模型版本持久化层 `src/project_course/services/task_store.py` 与 `src/project_course/services/model_registry.py`
+- [X] T008 实现 STM32 协议握手与数据包解析 `src/project_course/services/imu_protocol.py`
+- [X] T009 实现 tick unwrap 与线性拟合同步核心 `src/project_course/fusion/time_sync.py`
+- [X] T010 实现采样编排基础骨架并复用现有 camera 模块 `src/project_course/services/capture_service.py`
+- [X] T011 实现统一错误码与恢复动作映射 `src/project_course/services/error_codes.py`
+- [X] T012 [P] 实现 API 基础路由骨架 `src/project_course/api/routers/tasks.py`、`src/project_course/api/routers/dashboard.py`、`src/project_course/api/routers/models.py`
+- [X] T013 [P] 建立接口契约测试骨架 `tests/contract/test_api_contract.py`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -48,21 +48,21 @@
 
 ### Tests for User Story 1
 
-- [ ] T014 [P] [US1] 编写同步算法单元测试 `tests/unit/test_time_sync.py`（4s 拟合窗、R² 阈值、tick 溢出）
-- [ ] T015 [P] [US1] 编写 IMU 协议解析单元测试 `tests/unit/test_imu_protocol.py`（握手校验、seq 跳变）
-- [ ] T016 [US1] 编写采集闭环集成测试 `tests/integration/test_capture_pipeline.py`
-- [ ] T017 [US1] 编写任务窗口接口契约测试 `tests/contract/test_tasks_windows_contract.py`
+- [X] T014 [P] [US1] 编写同步算法单元测试 `tests/unit/test_time_sync.py`（4s 拟合窗、R² 阈值、tick 溢出）
+- [X] T015 [P] [US1] 编写 IMU 协议解析单元测试 `tests/unit/test_imu_protocol.py`（握手校验、seq 跳变）
+- [X] T016 [US1] 编写采集闭环集成测试 `tests/integration/test_capture_pipeline.py`
+- [X] T017 [US1] 编写任务窗口接口契约测试 `tests/contract/test_tasks_windows_contract.py`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [P] [US1] 实现六轴分轴特征提取 `src/project_course/fusion/imu_features.py`
-- [ ] T019 [P] [US1] 实现视觉分轴特征提取 `src/project_course/fusion/camera_features.py`
-- [ ] T020 [US1] 实现特征向量 join 与训练输入构建 `src/project_course/fusion/feature_vector_fusion.py`
-- [ ] T021 [US1] 实现基线分类推理服务 `src/project_course/services/inference_service.py`
-- [ ] T022 [US1] 完成采样任务编排与错误恢复逻辑 `src/project_course/services/capture_service.py`
-- [ ] T023 [US1] 实现任务创建与查询接口 `src/project_course/api/routers/tasks.py`
-- [ ] T024 [US1] 实现窗口特征与频谱接口 `src/project_course/api/routers/tasks.py`
-- [ ] T025 [US1] 在应用入口注册路由与依赖 `src/project_course/api/app.py`
+- [X] T018 [P] [US1] 实现六轴分轴特征提取 `src/project_course/fusion/imu_features.py`
+- [X] T019 [P] [US1] 实现视觉分轴特征提取 `src/project_course/fusion/camera_features.py`
+- [X] T020 [US1] 实现特征向量 join 与训练输入构建 `src/project_course/fusion/feature_vector_fusion.py`
+- [X] T021 [US1] 实现基线分类推理服务 `src/project_course/services/inference_service.py`
+- [X] T022 [US1] 完成采样任务编排与错误恢复逻辑 `src/project_course/services/capture_service.py`
+- [X] T023 [US1] 实现任务创建与查询接口 `src/project_course/api/routers/tasks.py`
+- [X] T024 [US1] 实现窗口特征与频谱接口 `src/project_course/api/routers/tasks.py`
+- [X] T025 [US1] 在应用入口注册路由与依赖 `src/project_course/api/app.py`
 
 **Checkpoint**: User Story 1 should be fully functional and independently testable
 
@@ -101,16 +101,16 @@
 
 ### Tests for User Story 3
 
-- [ ] T035 [P] [US3] 编写增量阈值守卫单元测试 `tests/unit/test_incremental_threshold.py`
-- [ ] T036 [US3] 编写增量更新集成测试 `tests/integration/test_incremental_update_flow.py`
-- [ ] T037 [US3] 编写模型版本接口契约测试 `tests/contract/test_model_versions_contract.py`
+- [X] T035 [P] [US3] 编写增量阈值守卫单元测试 `tests/unit/test_incremental_threshold.py`
+- [X] T036 [US3] 编写增量更新集成测试 `tests/integration/test_incremental_update_flow.py`
+- [X] T037 [US3] 编写模型版本接口契约测试 `tests/contract/test_model_versions_contract.py`
 
 ### Implementation for User Story 3
 
-- [ ] T038 [P] [US3] 实现增量更新引擎与报告计算 `src/project_course/services/model_update_service.py`
-- [ ] T039 [US3] 实现增量更新阈值校验与拒绝反馈 `src/project_course/services/model_update_service.py`
-- [ ] T040 [US3] 实现增量更新与版本查询接口 `src/project_course/api/routers/models.py`
-- [ ] T041 [US3] 将更新报告纳入大屏概览输出 `src/project_course/api/routers/dashboard.py`
+- [X] T038 [P] [US3] 实现增量更新引擎与报告计算 `src/project_course/services/model_update_service.py`
+- [X] T039 [US3] 实现增量更新阈值校验与拒绝反馈 `src/project_course/services/model_update_service.py`
+- [X] T040 [US3] 实现增量更新与版本查询接口 `src/project_course/api/routers/models.py`
+- [X] T041 [US3] 将更新报告纳入大屏概览输出 `src/project_course/api/routers/dashboard.py`
 
 **Checkpoint**: All user stories are independently functional
 

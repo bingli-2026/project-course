@@ -1,0 +1,39 @@
+@startwbs
+* Dual-Modal Equipment Condition Monitoring Architecture (WBS)
+** Web Module
+*** Frontend Dashboard (React + Vite)
+**** Raw Input Spectrum
+**** Fused Frequency Trend
+**** System & Hardware Status
+*** Frontend-Backend Communication
+**** Axios API Client
+**** REST API (/api/v1)
+*** Backend Interface Layer (FastAPI Routers)
+**** Tasks Router (/tasks)
+**** Dashboard Router (/dashboard)
+**** Models Router (/models)
+
+** Hardware Module
+*** Camera Pipeline (UVC)
+**** YUY2 160x140@420fps
+**** Video frame capture into Capture Service
+*** Sensor Pipeline (STM32 IMU)
+**** 6-axis sampling ax/ay/az + gx/gy/gz
+**** USB CDC serial reporting to IMU Protocol
+*** Acquisition and Synchronization
+**** Capture Service unified task orchestration
+**** Time Sync (Tick Unwrap + linear fitting)
+
+** Model Module
+*** Feature Engineering
+**** Camera Features (vision_dx/dy_*)
+**** IMU Features (sensor_ax...gz_*)
+**** Feature Vector Fusion (window alignment + vector construction)
+*** Inference and Update
+**** Inference Service (state recognition)
+**** Model Update Service (incremental update)
+*** Storage and Artifacts
+**** Task Store (SQLite)
+**** Model Registry (SQLite)
+**** Feature/Model Artifacts (file storage)
+@endwbs

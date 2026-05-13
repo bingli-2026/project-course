@@ -1,0 +1,27 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam shadowing false
+skinparam roundCorner 10
+left to right direction
+
+title Model Inference, Incremental Update, and Evaluation Metrics v1
+
+rectangle "Training/Inference Input" as input {
+  component "FusedFeatureVector\nvision_* + sensor_*" as fv
+  component "Quality gate\nimu_quality=ok & cam_quality=ok" as gate
+}
+
+rectangle "Model Services" as model {
+  component "Inference Service\nRF/XGBoost/SVM" as infer
+  component "Model Update Service\nIncremental update" as update
+  database "Model Registry\nVersion records" as registry
+}
+
+fv --> gate
+gate --> infer
+gate --> update
+update --> registry
+
+@enduml

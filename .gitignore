@@ -11,6 +11,10 @@ __pycache__/
 .ruff_cache/
 dist/
 *.egg-info/
+node_modules/
+build/
+*.log
+.env*
 
 # Motion amplifier experiment artifacts and datasets
 laboratory/legacy/motion-amplifier/data/

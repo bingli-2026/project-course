@@ -1,0 +1,28 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam shadowing false
+skinparam roundCorner 10
+
+start
+fork
+:Capture camera frames\n(frame_seq, t_cam_host_s);
+fork again
+:Capture 6-axis sensor data\n(sensor_seq, t_sensor_host_s);
+:Transmit IMU packets\n(imu_seq, t_imu_tick_us);
+end merge
+:Tick unwrap\n32-bit -> 64-bit logical timeline;
+:Sliding-window linear fitting\nt_host = a * t_imu_tick_us + b;
+if (R² >= 0.995?) then (Yes)
+  :Time alignment is valid;
+else (No)
+  :Set sync_fit_failed=true;
+endif
+:Align by sample_id + window_index;
+:Extract visual features vision_dx/dy_*;
+:Extract sensor features sensor_ax...gz_*;
+:Build fused vector\nFusedFeatureVector;
+stop
+
+@enduml

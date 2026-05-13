@@ -3,7 +3,12 @@
 from fastapi import FastAPI
 
 from project_course.api.config import settings
-from project_course.api.routers.health import router as health_router
+from project_course.api.routers import (
+    dashboard_router,
+    health_router,
+    models_router,
+    tasks_router,
+)
 
 
 def create_app() -> FastAPI:
@@ -14,10 +19,17 @@ def create_app() -> FastAPI:
         debug=settings.debug,
     )
     app.include_router(health_router)
+    app.include_router(tasks_router)
+    app.include_router(dashboard_router)
+    app.include_router(models_router)
 
     @app.get("/", summary="API root")
     def root() -> dict[str, str]:
         return {"message": "project-course api"}
+
+    @app.get("/api/v1/health", summary="Health check alias")
+    def health_alias() -> dict[str, str]:
+        return {"status": "ok"}
 
     return app
 
