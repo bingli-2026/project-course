@@ -15,6 +15,7 @@ node_modules/
 build/
 *.log
 .env*
+tmp/
 
 # Motion amplifier experiment artifacts and datasets
 laboratory/legacy/motion-amplifier/data/

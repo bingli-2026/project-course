@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Sampling defaults
     default_window_size_s: float = 0.25
     default_window_hop_s: float = 0.05
-    default_imu_sample_rate_hz: int = 1680
+    default_imu_sample_rate_hz: int = 480
 
     # Optional fallback ROI if request payload does not provide one
     default_roi_x: int = 0
@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     imu_stream_timeout_ms: int = 500
     camera_gap_multiplier: float = 3.0
     disk_guard_ratio: float = 1.5
+    imu_source_mode: str = "auto"  # auto | live | synthetic
+    imu_serial_port: str = "/dev/ttyACM0"
+    imu_serial_baudrate: int = 921600
+    imu_capture_windows: int = 8
+    imu_handshake_retry_count: int = 20
+    imu_handshake_timeout_ms: int = 500
 
     # Incremental update guard
     incremental_min_windows: int = 90

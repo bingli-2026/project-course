@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from project_course.services.capture_service import CaptureRequest, CaptureService
+from project_course.services.error_codes import IMU_STREAM_TIMEOUT
 from project_course.services.inference_service import InferenceService
 from project_course.services.runtime_state import (
     model_registry,
@@ -17,6 +19,7 @@ from project_course.services.runtime_state import (
 )
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
+_logger = logging.getLogger(__name__)
 
 _capture_service = CaptureService()
 _inference_service = InferenceService()
@@ -46,7 +49,29 @@ def create_task(payload: CreateTaskRequest) -> dict[str, object]:
     task_store.update_status(task_id, "running")
 
     request = CaptureRequest(**payload.model_dump())
-    windows, vectors = _capture_service.run_capture_pipeline(request, task_id=task_id)
+    try:
+        windows, vectors = _capture_service.run_capture_pipeline(
+            request,
+            task_id=task_id,
+        )
+    except RuntimeError as exc:
+        task_store.update_status(task_id, "failed")
+        message = str(exc)
+        _logger.exception("capture pipeline runtime error: %s", message)
+        if message.startswith(f"{IMU_STREAM_TIMEOUT.code}:"):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": IMU_STREAM_TIMEOUT.code,
+                    "message": IMU_STREAM_TIMEOUT.message,
+                    "action": IMU_STREAM_TIMEOUT.action,
+                },
+            ) from exc
+        raise HTTPException(status_code=500, detail=message) from exc
+    except Exception as exc:
+        task_store.update_status(task_id, "failed")
+        _logger.exception("capture pipeline unexpected error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     infer = _inference_service.predict(vectors)
     task_windows[task_id] = windows
@@ -80,7 +105,19 @@ def get_task(task_id: str) -> dict[str, object]:
 
     task = task_store.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="task not found")
+        return {
+            "task_id": task_id,
+            "task_status": "unknown",
+            "model_version": "v0.1.0",
+            "predicted_state": "unknown",
+            "confidence_summary": 0.0,
+            "effective_window_count": 0,
+            "sync_quality": {
+                "offset_ms_p95": 0.0,
+                "drift_ppm": 0.0,
+                "aligned_window_ratio": 0.0,
+            },
+        }
 
     result = task_results.get(
         task_id,

@@ -1,3 +1,8 @@
+---
+name: doc-context-tracking
+description: 在项目开发过程中自动记录并维护关键上下文文档与项目文档索引，确保信息可追踪。
+---
+
 # Doc Context Tracking
 
 ## 目标

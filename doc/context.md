@@ -400,3 +400,68 @@
 - 数据下载与整理脚本
 - 视频测频 Python 原型
 - 与三轴传感器频谱对齐的融合脚本
+
+## 13. Orange Pi I2C Bring-up Context (2026-05-16)
+
+硬件连接（已验证）：
+
+- 传感器：ATK-MS6DSV（LSM6DSV16X）
+- 总线：I2C7（40pin `SDA7/SCL7`）
+- 设备地址：`0x6a`（`SA0 -> GND`）
+- 中断脚：`INT -> GPIO2_18`（当前阶段未启用中断采样，仅轮询）
+
+软件与权限（已验证）：
+
+- 运行用户：`HwHiAiUser`
+- Python 路径：`/usr/bin/python3`
+- I2C 设备权限：`/dev/i2c-7` 属于 `root:i2c`
+- 处理方式：将用户加入 `i2c` 组（不需要 `gpio` 组，本机无该组）
+  - 命令：`sudo usermod -aG i2c HwHiAiUser`
+  - 生效：重新登录或 `newgrp i2c`
+
+最小读数验证结果（通过）：
+
+- `WHO_AM_I = 0x70`（与 LSM6DSV16X 预期一致）
+- 寄存器配置：`CTRL1=0x05 CTRL2=0x05 CTRL3=0x44 CTRL6=0x04 CTRL8=0x00`
+- 实时读数正常：`gyro` 与 `accel` 均有合理变化，静止时 `accel_z` 约 1g。
+
+当前轮询吞吐基线（待优化）：
+
+- 测试条件：I2C7，连续读取 12B（`OUTX_L_G` 起始，含 6 轴原始值），2000 样本。
+- 实测：`~722.61 Hz`
+- 结论：低于项目目标 `~1680 Hz`，后续需切换为 FIFO 批量读取或提升总线/链路策略。
+
+包化实现验证（2026-05-16）：
+
+- 新增项目包：`project_course.sensors.ms6dsv`
+- CLI：`project_course.sensors.ms6dsv_cli`
+- 运行环境：`/usr/bin/python3`（Orange Pi）
+- 命令：
+  - `PYTHONPATH=/home/HwHiAiUser/workspace/project-course /usr/bin/python3 -m project_course.sensors.ms6dsv_cli --duration-s 5 --target-hz 1680 --output /home/HwHiAiUser/workspace/project-course/ms6dsv_capture.csv`
+- 结果：
+  - `estimated_max_rate_hz=721.92`
+  - `captured_samples=2360`
+  - `captured_rate_hz=471.93`
+  - CSV 已生成并可读。
+
+FIFO 速率上限实验（Orange Pi, I2C7, 2026-05-16）：
+
+- 方法：LSM6DSV16X 使用 FIFO STREAM 模式，扫 ODR 档位（60/120/240/480/960/1920），统计 3 秒内可排空的 FIFO records/s，并记录 FIFO 峰值与溢出标志。
+- 结果：
+  - ODR=60: `124.0 rec/s`, `peak_lvl=24`, 无溢出
+  - ODR=120: `248.0 rec/s`, `peak_lvl=46`, 无溢出
+  - ODR=240: `495.8 rec/s`, `peak_lvl=92`, 无溢出
+  - ODR=480: `990.4 rec/s`, `peak_lvl=188`, 无溢出
+  - ODR=960: `1061.8 rec/s`, `peak_lvl=256`, 出现溢出/满标志
+  - ODR=1920: `1062.3 rec/s`, `peak_lvl=256`, 持续溢出/满标志
+- 结论：
+  - 当前 Orange Pi + I2C7 链路在 Python 用户态下的 FIFO 可持续排空能力约 `~1060 records/s`。
+  - 双传感器（gyro+accel）同时采样时，稳定无溢出的可用上限约在单传感器 `~480Hz` 档（总记录约 `960 rec/s`）附近。
+  - 当目标超过该能力（如 960Hz/1920Hz 每轴）会出现 FIFO 积压与溢出。
+
+工程决议（当前阶段）：
+
+- IMU 默认采样率固定为 `480Hz`（accel + gyro）。
+- 保精度策略：采集侧保存 `int16` 原始 6 轴值，后处理阶段再进行物理量换算。
+- `CTRL3.BDU=1` 作为默认开启项，避免高频读取出现半更新数据。
+- 开发兜底策略：MS6DSV CLI 默认软失败（无硬件/权限异常时仅记录日志并返回成功），避免阻塞 Web/API/算法等非硬件模块开发；硬件联调或 CI 可使用 `--strict-hardware` 开启严格失败。

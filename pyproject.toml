@@ -12,6 +12,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
+    "smbus2>=0.5.0",
     "uvicorn[standard]>=0.34.2",
 ]
 
@@ -20,6 +21,7 @@ project-course = "project_course.main:main"
 project-course-camera = "project_course.camera.cli:main"
 project-course-api = "project_course.api.__main__:main"
 project-course-api-dev = "project_course.api.__main__:dev_main"
+project-course-ms6dsv = "project_course.sensors.ms6dsv_cli:main"
 
 [dependency-groups]
 dev = [
@@ -49,3 +51,8 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I"]
+
+[tool.uv.workspace]
+members = [
+    "firmware/temppy",
+]
