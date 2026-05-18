@@ -16,5 +16,15 @@ dist/
 laboratory/legacy/motion-amplifier/data/
 laboratory/legacy/motion-amplifier/outputs/
 
+# Node / Vite (frontend dashboard)
+**/node_modules/
+**/dist/
+**/.vite/
+*.tsbuildinfo
+
+# Auto-generated SQLite index for the web backend
+data/*.sqlite3
+data/*.sqlite3-journal
+
 # Camera bring-up smoke test outputs
 laboratory/global-camera/captures/
