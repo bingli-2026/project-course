@@ -1,6 +1,6 @@
 # Key Context Index
 
-Generated at: `2026-05-07T17:17:01+08:00`
+Generated at: `2026-05-07T18:02:37+08:00`
 
 ## Key Context Documents
 - `doc/communications/supervisor-first-contact_en.md`
@@ -27,12 +27,19 @@ Generated at: `2026-05-07T17:17:01+08:00`
 - `pyproject.toml`
 - `src/project_course/__init__.py`
 - `src/project_course/__main__.py`
+- `src/project_course/api/__init__.py`
+- `src/project_course/api/__main__.py`
+- `src/project_course/api/app.py`
+- `src/project_course/api/config.py`
+- `src/project_course/api/routers/__init__.py`
+- `src/project_course/api/routers/health.py`
 - `src/project_course/camera/__init__.py`
 - `src/project_course/camera/__main__.py`
 - `src/project_course/camera/cli.py`
 - `src/project_course/camera/core.py`
 - `src/project_course/camera/v4l2.py`
 - `src/project_course/main.py`
+- `tests/test_api.py`
 - `tests/test_camera.py`
 - `tests/test_main.py`
 
