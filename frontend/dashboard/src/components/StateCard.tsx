@@ -41,11 +41,12 @@ function StateCard({ overview, recentStates }: Props): JSX.Element {
       <Row label="模型版本" value={overview?.active_model_version ?? "—"} />
       <Row label="24h 成功率" value={overview ? `${(overview.task_success_rate_24h * 100).toFixed(0)}%` : "—"} />
 
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 12, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <div style={historyHeader}>最近窗口</div>
         {recentStates.length === 0 ? (
           <div style={emptyRow}>无历史</div>
         ) : (
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -69,6 +70,7 @@ function StateCard({ overview, recentStates }: Props): JSX.Element {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -99,9 +101,12 @@ const panelStyle: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #e8e8e8",
   borderRadius: 8,
-  padding: 16,
+  padding: 14,
   boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-  height: "100%"
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+  minHeight: 0
 };
 
 const headerLabel: React.CSSProperties = { color: "#64748b", fontSize: 13, marginBottom: 8 };
