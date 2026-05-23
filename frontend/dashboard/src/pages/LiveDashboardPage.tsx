@@ -53,13 +53,13 @@ function LiveDashboardPage(): JSX.Element {
       />
 
       <div style={gridStyle}>
-        <div style={{ gridArea: "spectrum" }}>
+        <div style={{ gridArea: "spectrum", minHeight: 0 }}>
           <SpectrumPanel taskId={taskId} windowIndex={latestWindowIndex} />
         </div>
-        <div style={{ gridArea: "trend" }}>
+        <div style={{ gridArea: "trend", minHeight: 0 }}>
           <FusionTrend windows={samples} />
         </div>
-        <div style={{ gridArea: "state" }}>
+        <div style={{ gridArea: "state", minHeight: 0, overflow: "hidden" }}>
           <StateCard overview={overview.data} recentStates={recentStates} />
         </div>
       </div>
@@ -78,16 +78,22 @@ function LiveDashboardPage(): JSX.Element {
 const pageStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 14,
-  minHeight: "calc(100vh - 90px)"
+  gap: 10,
+  height: "calc(100vh - 90px)",
+  overflow: "hidden"
 };
 
 const gridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.8fr)",
-  gridTemplateAreas: '"spectrum trend state"',
-  gap: 14,
-  minHeight: 360
+  gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 0.8fr)",
+  gridTemplateRows: "minmax(0, 1.05fr) minmax(0, 0.95fr)",
+  gridTemplateAreas: `
+    "spectrum spectrum"
+    "trend state"
+  `,
+  gap: 10,
+  flex: 1,
+  minHeight: 0
 };
 
 const emptyHintStyle: React.CSSProperties = {
