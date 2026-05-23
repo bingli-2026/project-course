@@ -17,11 +17,13 @@ function FusionTrend({ windows }: Props): JSX.Element {
         <h3 style={{ margin: 0, fontSize: 15 }}>融合频率趋势</h3>
         <span style={metaStyle}>共 {windows.length} 窗</span>
       </div>
-      {isEmpty ? (
-        <div style={emptyStyle}>等待第一个窗口...</div>
-      ) : (
-        <ReactECharts option={option} style={{ height: 320, width: "100%" }} notMerge />
-      )}
+      <div style={chartWrapStyle}>
+        {isEmpty ? (
+          <div style={emptyStyle}>等待第一个窗口...</div>
+        ) : (
+          <ReactECharts option={option} style={{ height: "100%", width: "100%" }} notMerge />
+        )}
+      </div>
     </div>
   );
 }
@@ -100,9 +102,17 @@ const panelStyle: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #e8e8e8",
   borderRadius: 8,
-  padding: 14,
+  padding: 12,
   boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-  height: "100%"
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+  minHeight: 0
+};
+
+const chartWrapStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0
 };
 
 const headerStyle: React.CSSProperties = {

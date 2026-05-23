@@ -9,9 +9,14 @@ interface Props {
   windowIndex: number | null;
 }
 
-type TabKey = "accel" | "gyro" | "vision";
+interface SensorBlock {
+  key: "accel" | "gyro" | "vision";
+  label: string;
+  axes: SpectrumAxis[];
+  colors: string[];
+}
 
-const TABS: { key: TabKey; label: string; axes: SpectrumAxis[]; colors: string[] }[] = [
+const BLOCKS: SensorBlock[] = [
   {
     key: "accel",
     label: "加速度计",
@@ -33,7 +38,6 @@ const TABS: { key: TabKey; label: string; axes: SpectrumAxis[]; colors: string[]
 ];
 
 function SpectrumPanel({ taskId, windowIndex }: Props): JSX.Element {
-  const [tab, setTab] = useState<TabKey>("accel");
   const [spectra, setSpectra] = useState<WindowSpectraResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,23 +62,10 @@ function SpectrumPanel({ taskId, windowIndex }: Props): JSX.Element {
     };
   }, [taskId, windowIndex]);
 
-  const tabDef = TABS.find((t) => t.key === tab)!;
-  const option = useMemo(() => buildOption(spectra, tabDef), [spectra, tabDef]);
-
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
-        <div style={{ display: "flex", gap: 4 }}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={t.key === tab ? tabActive : tabInactive}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <h3 style={{ margin: 0, fontSize: 15 }}>实时频谱</h3>
         <span style={metaStyle}>
           {windowIndex !== null && windowIndex !== undefined ? `窗口 #${windowIndex}` : "无窗口"}
         </span>
@@ -82,24 +73,56 @@ function SpectrumPanel({ taskId, windowIndex }: Props): JSX.Element {
 
       {error && <div style={errorStyle}>频谱加载失败: {error}</div>}
 
-      {!spectra && !error && (
-        <div style={emptyStyle}>暂无频谱数据(等待第一个窗口)</div>
-      )}
+      <div style={gridStyle}>
+        {BLOCKS.map((block) => (
+          <SensorSpectrum
+            key={block.key}
+            block={block}
+            spectra={spectra}
+            hasError={error !== null}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      {spectra && (
-        <ReactECharts option={option} style={{ height: 320, width: "100%" }} notMerge />
-      )}
+interface SensorSpectrumProps {
+  block: SensorBlock;
+  spectra: WindowSpectraResponse | null;
+  hasError: boolean;
+}
+
+function SensorSpectrum({ block, spectra, hasError }: SensorSpectrumProps): JSX.Element {
+  const option = useMemo(() => buildOption(spectra, block), [spectra, block]);
+  const hasData = spectra !== null && block.axes.some((axis) => spectra[axis] !== null);
+
+  return (
+    <div style={subPanelStyle}>
+      <div style={subHeaderStyle}>{block.label}</div>
+      <div style={chartWrapStyle}>
+        {!hasData && !hasError && (
+          <div style={emptyStyle}>暂无频谱数据</div>
+        )}
+        {hasData && (
+          <ReactECharts
+            option={option}
+            style={{ height: "100%", width: "100%" }}
+            notMerge
+          />
+        )}
+      </div>
     </div>
   );
 }
 
 function buildOption(
   spectra: WindowSpectraResponse | null,
-  tabDef: typeof TABS[number]
+  block: SensorBlock
 ): Record<string, unknown> {
   if (!spectra) return {};
 
-  const series = tabDef.axes
+  const series = block.axes
     .map((axis, idx) => {
       const data = spectra[axis] as AxisSpectrum | null;
       if (!data) return null;
@@ -111,12 +134,18 @@ function buildOption(
         data: data.freq_hz.map((f, i) => [f, data.power[i]]),
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 2, color: tabDef.colors[idx] },
-        itemStyle: { color: tabDef.colors[idx] },
+        lineStyle: { width: 1.6, color: block.colors[idx] },
+        itemStyle: { color: block.colors[idx] },
         markLine: {
           symbol: "none",
-          lineStyle: { color: tabDef.colors[idx], type: "dashed" as const, width: 1 },
-          label: { formatter: `${peakHz.toFixed(1)} Hz`, fontSize: 11 },
+          lineStyle: { color: block.colors[idx], type: "dashed" as const, width: 1 },
+          label: {
+            formatter: `${peakHz.toFixed(1)} Hz`,
+            fontSize: 10,
+            position: "insideEndBottom" as const,
+            color: block.colors[idx],
+            distance: 4
+          },
           data: [{ xAxis: peakHz }]
         }
       };
@@ -125,10 +154,10 @@ function buildOption(
 
   return {
     tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
-    legend: { top: 0 },
-    grid: { left: 60, right: 24, bottom: 36, top: 32 },
-    xAxis: { type: "value", name: "Hz", nameLocation: "end" },
-    yAxis: { type: "value", name: "Power" },
+    legend: { top: 2, textStyle: { fontSize: 11 }, itemHeight: 8, itemGap: 8 },
+    grid: { left: 48, right: 16, bottom: 32, top: 40 },
+    xAxis: { type: "value", name: "Hz", nameLocation: "end", nameTextStyle: { fontSize: 11 } },
+    yAxis: { type: "value", name: "Power", nameTextStyle: { fontSize: 11 } },
     series
   };
 }
@@ -137,9 +166,12 @@ const panelStyle: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #e8e8e8",
   borderRadius: 8,
-  padding: 14,
+  padding: 12,
   boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-  height: "100%"
+  height: "100%",
+  display: "flex",
+  flexDirection: "column",
+  minHeight: 0
 };
 
 const headerStyle: React.CSSProperties = {
@@ -149,24 +181,35 @@ const headerStyle: React.CSSProperties = {
   marginBottom: 8
 };
 
-const tabActive: React.CSSProperties = {
-  background: "#1677ff",
-  color: "#fff",
-  border: "none",
-  padding: "5px 12px",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 13
+const gridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 10,
+  flex: 1,
+  minHeight: 0
 };
 
-const tabInactive: React.CSSProperties = {
-  background: "#f1f5f9",
-  color: "#475569",
-  border: "1px solid #e2e8f0",
-  padding: "5px 12px",
+const subPanelStyle: React.CSSProperties = {
+  background: "#fafbfc",
+  border: "1px solid #eef0f3",
   borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 13
+  padding: "6px 8px 8px",
+  display: "flex",
+  flexDirection: "column",
+  minHeight: 0
+};
+
+const subHeaderStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#334155",
+  marginBottom: 2
+};
+
+const chartWrapStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  position: "relative"
 };
 
 const metaStyle: React.CSSProperties = { color: "#64748b", fontSize: 13 };
@@ -177,15 +220,17 @@ const errorStyle: React.CSSProperties = {
   border: "1px solid #fecaca",
   color: "#991b1b",
   borderRadius: 6,
-  fontSize: 13
+  fontSize: 13,
+  marginBottom: 10
 };
 
 const emptyStyle: React.CSSProperties = {
-  padding: 36,
+  padding: 24,
   textAlign: "center",
   color: "#94a3b8",
   background: "#f8fafc",
-  borderRadius: 6
+  borderRadius: 6,
+  fontSize: 12
 };
 
 export default SpectrumPanel;
