@@ -1,0 +1,69 @@
+@startuml system-architecture-current
+' 中期汇报 - 系统总体架构(当前实际部署)
+' 横版,简化文字,字号增大,适合 PPT 整页展示
+title 系统总体架构
+
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 22
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ranksep 55
+skinparam nodesep 35
+
+skinparam rectangle {
+  BackgroundColor #F7FAFF
+  BorderColor #4A6FA5
+  FontColor #1E2761
+  FontSize 24
+}
+skinparam package {
+  BackgroundColor #EEF3FA
+  BorderColor #4A6FA5
+  FontColor #1E2761
+  FontSize 26
+  FontStyle bold
+}
+skinparam note {
+  BackgroundColor #FFF8E1
+  BorderColor #BFA968
+  FontSize 20
+}
+skinparam arrow {
+  Color #4A6FA5
+  FontColor #4A6FA5
+  Thickness 2
+}
+
+left to right direction
+
+rectangle "电机 + 减速箱" as MOTOR #FFF4E6
+
+package "采集" as L1 {
+  rectangle "全局相机\n420 fps" as CAM
+  rectangle "ADXL345\n3 轴 @ 420 Hz" as IMU
+}
+
+package "边缘端 · 香橙派" as L2 {
+  rectangle "视觉 PCA\n(独立)" as VPCA #E8F5E9
+  rectangle "振动 PCA\n(独立)" as SPCA #E8F5E9
+  rectangle "FastAPI" as API #FFF8E1
+}
+
+package "展示" as L3 {
+  rectangle "Web 仪表盘" as WEB
+}
+
+MOTOR --> CAM
+MOTOR --> IMU
+CAM --> VPCA : 光流特征
+IMU --> SPCA : 时频特征
+VPCA --> API
+SPCA --> API
+API --> WEB : REST
+
+note bottom of L2
+  两条 PCA 分支独立训练、独立推理
+  当前阶段不做特征 / 决策融合
+end note
+
+@enduml
