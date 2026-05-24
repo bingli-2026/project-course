@@ -1,56 +1,39 @@
-"""Dashboard overview APIs."""
+"""Dashboard overview — /api/v1/dashboard/overview."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-from project_course.services.runtime_state import (
-    task_results,
-    task_store,
-    task_windows,
-    update_reports,
-)
+from project_course.api.live import LIVE_STATE
+from project_course.api.storage import db
+from project_course.api.storage.models import DashboardOverview
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
-@router.get("/overview", summary="大屏概览数据")
-def get_dashboard_overview() -> dict[str, object]:
-    """Return overview payload from shared runtime state."""
+@router.get(
+    "/overview",
+    summary="Top-of-screen dashboard summary",
+    response_model=DashboardOverview,
+)
+def get_overview() -> DashboardOverview:
+    row = db.latest_task()
+    if row is None:
+        return DashboardOverview(task_success_rate_24h=db.task_success_rate_24h())
 
-    latest_task = None
-    if task_results:
-        latest_task = list(task_results.keys())[-1]
+    buffer = LIVE_STATE.snapshot_buffer()
+    latest_window = buffer[-1] if buffer else None
 
-    latest_status = "pending"
-    latest_state = "unknown"
-    latest_freq = 0.0
-    model_version = "v0.0.0"
-
-    if latest_task is not None:
-        task = task_store.get_task(latest_task)
-        result = task_results.get(latest_task, {})
-        windows = task_windows.get(latest_task, [])
-        latest_status = task.task_status if task else "pending"
-        latest_state = str(result.get("predicted_state", "unknown"))
-        model_version = str(result.get("model_version", "v0.0.0"))
-        if windows:
-            latest_freq = float(windows[-1].get("fused_dominant_freq_hz", 0.0))
-
-    rows = task_store._tasks.values()
-    success_count = sum(1 for row in rows if row.task_status == "succeeded")
-    total_count = len(task_store._tasks)
-    success_rate = (success_count / total_count) if total_count else 0.0
-
-    payload = {
-        "latest_task_id": latest_task or "task-placeholder",
-        "latest_status": latest_status,
-        "latest_predicted_state": latest_state,
-        "latest_fused_frequency_hz": latest_freq,
-        "active_model_version": model_version,
-        "task_success_rate_24h": success_rate,
-        "sync_offset_ms_p95": 1.0,
-    }
-    if update_reports:
-        payload["latest_incremental_report"] = update_reports[-1]
-    return payload
+    return DashboardOverview(
+        latest_task_id=row["task_id"],
+        latest_status=row["task_status"],
+        latest_predicted_state=row["predicted_state"],
+        latest_fused_frequency_hz=(latest_window or {}).get("fused_dominant_freq_hz"),
+        active_model_version=row["model_version"],
+        task_success_rate_24h=db.task_success_rate_24h(),
+        sync_offset_ms_p95=row["sync_offset_ms_p95"],
+        sync_drift_ppm=row["sync_drift_ppm"],
+        aligned_window_ratio=row["aligned_window_ratio"],
+        effective_window_count=row["effective_window_count"] or 0,
+        latest_window_index=(latest_window or {}).get("window_index"),
+    )

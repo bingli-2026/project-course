@@ -87,7 +87,10 @@ def run(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     logger = _setup_logger(args.log_path)
     logger.info(
-        "ms6dsv capture start bus=%s address=0x%02X odr_hz=%s target_hz=%s duration_s=%s",
+        (
+            "ms6dsv capture start bus=%s address=0x%02X odr_hz=%s "
+            "target_hz=%s duration_s=%s"
+        ),
         args.bus,
         args.address,
         args.odr_hz,

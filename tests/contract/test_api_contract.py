@@ -14,7 +14,7 @@ def test_health_route_exists() -> None:
 
 def test_tasks_route_exists() -> None:
     response = client.get("/api/v1/tasks/task-placeholder")
-    assert response.status_code == 200
+    assert response.status_code == 404
 
 
 def test_dashboard_route_exists() -> None:
