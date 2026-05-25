@@ -28,3 +28,4 @@ data/*.sqlite3-journal
 
 # Camera bring-up smoke test outputs
 laboratory/global-camera/captures/
+motor_fault_pca_project/results/

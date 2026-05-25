@@ -28,6 +28,16 @@ def main() -> None:
     parser.add_argument("--fourcc", default="YUY2")
     parser.add_argument("--visual-method", choices=["lk", "motion"], default="lk")
     parser.add_argument("--roi", type=int, nargs=4, metavar=("X", "Y", "W", "H"))
+    parser.add_argument(
+        "--auto-roi",
+        action="store_true",
+        help="Infer a target ROI from foreground motion before LK tracking.",
+    )
+    parser.add_argument(
+        "--auto-object",
+        action="store_true",
+        help="Infer a whole vibrating-object mask before LK tracking.",
+    )
     parser.add_argument("--max-corners", type=int, default=80)
     parser.add_argument("--min-frequency", type=float, default=1.0)
     parser.add_argument("--max-frequency", type=float)
@@ -89,6 +99,8 @@ def main() -> None:
                     args.fourcc,
                     args.visual_method,
                     tuple(args.roi) if args.roi else None,
+                    args.auto_roi,
+                    args.auto_object,
                     args.max_corners,
                     args.min_frequency,
                     args.max_frequency,
@@ -149,6 +161,8 @@ def _visual_loop(
     fourcc: str,
     visual_method: str,
     roi: tuple[int, int, int, int] | None,
+    auto_roi: bool,
+    auto_object: bool,
     max_corners: int,
     min_frequency: float,
     max_frequency: float | None,
@@ -171,6 +185,8 @@ def _visual_loop(
                 fps=fps,
                 fourcc=fourcc,
                 roi=roi,
+                auto_roi=auto_roi,
+                auto_object=auto_object,
                 max_corners=max_corners,
                 min_frequency=min_frequency,
                 max_frequency=max_frequency,

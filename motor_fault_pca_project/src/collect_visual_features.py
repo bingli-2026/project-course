@@ -20,6 +20,16 @@ def main() -> None:
     parser.add_argument("--fourcc", default="YUY2")
     parser.add_argument("--method", choices=["lk", "motion"], default="lk")
     parser.add_argument("--roi", type=int, nargs=4, metavar=("X", "Y", "W", "H"))
+    parser.add_argument(
+        "--auto-roi",
+        action="store_true",
+        help="Infer a target ROI from foreground motion before LK tracking.",
+    )
+    parser.add_argument(
+        "--auto-object",
+        action="store_true",
+        help="Infer a whole vibrating-object mask before LK tracking.",
+    )
     parser.add_argument("--max-corners", type=int, default=80)
     parser.add_argument("--min-frequency", type=float, default=1.0)
     parser.add_argument("--max-frequency", type=float)
@@ -45,6 +55,8 @@ def main() -> None:
                 max_corners=args.max_corners,
                 min_frequency=args.min_frequency,
                 max_frequency=args.max_frequency,
+                auto_roi=args.auto_roi,
+                auto_object=args.auto_object,
             )
         else:
             record = visual_motion_window_from_camera(

@@ -126,6 +126,8 @@ def visual_vibration_window_from_camera(
     min_frequency: float = 1.0,
     max_frequency: float | None = None,
     use_clahe: bool = True,
+    auto_roi: bool = False,
+    auto_object: bool = False,
 ) -> WindowRecord:
     """Extract vibration-focused visual spectrum features from a live camera.
 
@@ -148,6 +150,7 @@ def visual_vibration_window_from_camera(
     start_time = time.time()
     frames: list[np.ndarray] = []
     timestamps: list[float] = []
+    appearance_frame: np.ndarray | None = None
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) if use_clahe else None
 
     try:
@@ -155,6 +158,7 @@ def visual_vibration_window_from_camera(
             ok, frame = cap.read()
             if not ok:
                 continue
+            appearance_frame = frame.copy()
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             if clahe is not None:
                 gray = clahe.apply(gray)
@@ -172,6 +176,9 @@ def visual_vibration_window_from_camera(
         min_tracks=min_tracks,
         min_frequency=min_frequency,
         max_frequency=max_frequency,
+        auto_roi=auto_roi,
+        auto_object=auto_object,
+        appearance_frame=appearance_frame,
     )
     return WindowRecord(features=features, start_time=start_time, end_time=end_time)
 
@@ -180,10 +187,14 @@ def visual_vibration_features_from_frames(
     frames: list[np.ndarray],
     timestamps: list[float],
     roi: tuple[int, int, int, int] | None = None,
+    mask: np.ndarray | None = None,
     max_corners: int = 80,
     min_tracks: int = 5,
     min_frequency: float = 1.0,
     max_frequency: float | None = None,
+    auto_roi: bool = False,
+    auto_object: bool = False,
+    appearance_frame: np.ndarray | None = None,
 ) -> dict[str, float]:
     import cv2
 
@@ -191,19 +202,47 @@ def visual_vibration_features_from_frames(
         raise ValueError("Not enough camera frames captured for visual vibration analysis.")
 
     height, width = frames[0].shape
-    if roi is None:
-        roi = (0, 0, width, height)
-    x, y, w, h = _validate_roi(width, height, roi)
+    if mask is not None and mask.shape != frames[0].shape:
+        raise ValueError(
+            f"Mask shape {mask.shape} does not match frame shape {frames[0].shape}."
+        )
 
-    mask = np.zeros_like(frames[0])
-    mask[y : y + h, x : x + w] = 255
+    search_roi = roi
+    if search_roi is None:
+        search_roi = (0, 0, width, height)
+    _validate_roi(width, height, search_roi)
+
+    mask_source = "manual_roi"
+    if mask is not None:
+        feature_mask = _prepare_feature_mask(mask, search_roi)
+        x, y, w, h = _bbox_from_mask(feature_mask)
+        mask_source = "provided_mask"
+    elif auto_object:
+        feature_mask, (x, y, w, h) = _vibrating_object_mask_from_frames(
+            frames=frames,
+            timestamps=timestamps,
+            search_roi=search_roi,
+            appearance_frame=appearance_frame,
+        )
+        mask_source = "auto_vibrating_object"
+    elif auto_roi:
+        feature_mask, (x, y, w, h) = _motion_mask_from_frames(
+            frames=frames,
+            search_roi=search_roi,
+        )
+        mask_source = "auto_motion"
+    else:
+        x, y, w, h = _validate_roi(width, height, search_roi)
+        feature_mask = np.zeros_like(frames[0], dtype=np.uint8)
+        feature_mask[y : y + h, x : x + w] = 255
+
     corners = cv2.goodFeaturesToTrack(
         frames[0],
         maxCorners=max_corners,
         qualityLevel=0.01,
         minDistance=4,
         blockSize=7,
-        mask=mask,
+        mask=feature_mask,
     )
     if corners is None or len(corners) < min_tracks:
         raise ValueError("Not enough stable visual corners in ROI. Adjust ROI or lighting.")
@@ -248,6 +287,8 @@ def visual_vibration_features_from_frames(
         "roi_w": float(w),
         "roi_h": float(h),
         "analysis_fps": float(analysis_fps),
+        "vision_mask_source_code": float(_mask_source_code(mask_source)),
+        "vision_mask_area_ratio": float(np.mean(feature_mask > 0)),
         "tracked_points": float(dx_array.shape[1]),
         "vision_dx_std": float(np.std(dx)),
         "vision_dy_std": float(np.std(dy)),
@@ -441,6 +482,427 @@ def _aggregate_frame_features(
         features[f"{prefix}_{column}_std"] = float(np.std(values))
         features[f"{prefix}_{column}_max"] = float(np.max(values))
     return features
+
+
+def _prepare_feature_mask(
+    mask: np.ndarray,
+    search_roi: tuple[int, int, int, int],
+) -> np.ndarray:
+    height, width = mask.shape
+    x, y, w, h = _validate_roi(width, height, search_roi)
+    feature_mask = np.zeros((height, width), dtype=np.uint8)
+    feature_mask[mask > 0] = 255
+
+    roi_limiter = np.zeros_like(feature_mask)
+    roi_limiter[y : y + h, x : x + w] = 255
+    feature_mask &= roi_limiter
+
+    if not np.any(feature_mask):
+        raise ValueError("Feature mask is empty inside the selected ROI.")
+    return feature_mask
+
+
+def _motion_mask_from_frames(
+    frames: list[np.ndarray],
+    search_roi: tuple[int, int, int, int],
+    *,
+    min_area_ratio: float = 0.005,
+    max_area_ratio: float = 0.6,
+    motion_percentile: float = 90.0,
+    padding: int = 4,
+) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    import cv2
+
+    height, width = frames[0].shape
+    x, y, w, h = _validate_roi(width, height, search_roi)
+    motion = np.zeros((height, width), dtype=np.uint8)
+    prev = _as_uint8_gray(frames[0])
+
+    for frame in frames[1:]:
+        current = _as_uint8_gray(frame)
+        motion = np.maximum(motion, cv2.absdiff(prev, current))
+        prev = current
+
+    limited_motion = np.zeros_like(motion)
+    limited_motion[y : y + h, x : x + w] = motion[y : y + h, x : x + w]
+    if int(limited_motion.max()) == 0:
+        raise ValueError("Auto ROI failed: no foreground motion found.")
+
+    blurred = cv2.GaussianBlur(limited_motion, (5, 5), 0)
+    roi_motion = blurred[y : y + h, x : x + w]
+    otsu_threshold, _ = cv2.threshold(
+        blurred,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )
+    threshold = max(float(otsu_threshold), float(np.percentile(roi_motion, motion_percentile)))
+    binary = np.where(blurred >= threshold, 255, 0).astype(np.uint8)
+    if not np.any(binary):
+        threshold = float(np.percentile(roi_motion, 98.0))
+        binary = np.where(blurred >= threshold, 255, 0).astype(np.uint8)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
+    binary = cv2.dilate(binary, kernel, iterations=1)
+
+    contours, _ = cv2.findContours(
+        binary,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE,
+    )
+    min_area = max(4.0, float(w * h) * min_area_ratio)
+    contours = [c for c in contours if cv2.contourArea(c) >= min_area]
+    if not contours:
+        raise ValueError("Auto ROI failed: foreground area is too small.")
+
+    largest = max(contours, key=cv2.contourArea)
+    bx, by, bw, bh = cv2.boundingRect(largest)
+    if (bw * bh) / float(w * h) > max_area_ratio:
+        threshold = float(np.percentile(roi_motion, 98.0))
+        binary = np.where(blurred >= threshold, 255, 0).astype(np.uint8)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+        contours, _ = cv2.findContours(
+            binary,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )
+        contours = [c for c in contours if cv2.contourArea(c) >= min_area]
+        if not contours:
+            raise ValueError("Auto ROI failed: foreground area is too diffuse.")
+        bx, by, bw, bh = cv2.boundingRect(max(contours, key=cv2.contourArea))
+
+    px, py, pw, ph = _pad_bbox(bx, by, bw, bh, width, height, padding)
+
+    feature_mask = np.zeros_like(motion)
+    feature_mask[py : py + ph, px : px + pw] = 255
+    feature_mask = _prepare_feature_mask(feature_mask, search_roi)
+    return feature_mask, _bbox_from_mask(feature_mask)
+
+
+def _vibrating_object_mask_from_frames(
+    frames: list[np.ndarray],
+    timestamps: list[float],
+    search_roi: tuple[int, int, int, int],
+    *,
+    appearance_frame: np.ndarray | None = None,
+    max_seed_corners: int = 450,
+    min_seed_points: int = 4,
+) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    import cv2
+
+    if len(frames) < 12:
+        raise ValueError("Auto object failed: at least 12 frames are required.")
+
+    height, width = frames[0].shape
+    x, y, w, h = _validate_roi(width, height, search_roi)
+    roi_mask = np.zeros((height, width), dtype=np.uint8)
+    roi_mask[y : y + h, x : x + w] = 255
+
+    first = _as_uint8_gray(frames[0])
+    corners = cv2.goodFeaturesToTrack(
+        first,
+        maxCorners=max_seed_corners,
+        qualityLevel=0.004,
+        minDistance=4,
+        blockSize=5,
+        mask=roi_mask,
+    )
+    if corners is None or len(corners) < min_seed_points:
+        raise ValueError("Auto object failed: not enough feature points in ROI.")
+
+    initial, x_tracks, y_tracks = _track_sparse_points(frames, corners)
+    if x_tracks.shape[1] < min_seed_points:
+        raise ValueError("Auto object failed: too few valid tracked points.")
+
+    fps = _effective_fps(timestamps[: x_tracks.shape[0]])
+    scores = _vibration_scores(x_tracks, y_tracks, fps)
+    selected = _select_vibration_seed_points(scores, min_seed_points)
+    seed_points = initial[selected]
+    seed_mask = _seed_mask_from_points(seed_points, (height, width), radius=9)
+    seed_mask = _largest_seed_component(seed_mask, seed_points, scores[selected])
+
+    if not np.any(seed_mask):
+        raise ValueError("Auto object failed: no vibration seed cluster found.")
+
+    return _grow_object_mask_from_seed(
+        frame=appearance_frame if appearance_frame is not None else first,
+        search_roi=search_roi,
+        seed_mask=seed_mask,
+    )
+
+
+def _track_sparse_points(
+    frames: list[np.ndarray],
+    corners: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    import cv2
+
+    initial = corners.reshape(-1, 2)
+    current = corners
+    valid = np.ones(len(initial), dtype=bool)
+    tracks_x = [initial[:, 0].copy()]
+    tracks_y = [initial[:, 1].copy()]
+    prev = _as_uint8_gray(frames[0])
+    lk_params = dict(
+        winSize=(21, 21),
+        maxLevel=3,
+        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01),
+    )
+
+    for frame in frames[1:]:
+        current_frame = _as_uint8_gray(frame)
+        next_pts, status, _ = cv2.calcOpticalFlowPyrLK(
+            prev,
+            current_frame,
+            current,
+            None,
+            **lk_params,
+        )
+        if next_pts is None or status is None:
+            break
+        valid &= status.reshape(-1).astype(bool)
+        flat = next_pts.reshape(-1, 2)
+        tracks_x.append(flat[:, 0].copy())
+        tracks_y.append(flat[:, 1].copy())
+        current = next_pts
+        prev = current_frame
+
+    return (
+        initial[valid],
+        np.asarray(tracks_x, dtype=float)[:, valid],
+        np.asarray(tracks_y, dtype=float)[:, valid],
+    )
+
+
+def _vibration_scores(
+    x_tracks: np.ndarray,
+    y_tracks: np.ndarray,
+    fps: float,
+) -> np.ndarray:
+    scores: list[float] = []
+    for index in range(x_tracks.shape[1]):
+        dx = _detrend(x_tracks[:, index] - x_tracks[0, index])
+        dy = _detrend(y_tracks[:, index] - y_tracks[0, index])
+        motion = np.sqrt(dx * dx + dy * dy)
+        if len(motion) < 8 or fps <= 0:
+            scores.append(float(np.std(motion)))
+            continue
+
+        window = np.hanning(len(motion))
+        freqs = np.fft.rfftfreq(len(motion), d=1.0 / fps)
+        power = np.abs(np.fft.rfft((motion - motion.mean()) * window)) ** 2
+        high = (freqs >= 2.0) & (freqs <= min(0.45 * fps, 25.0))
+        low = (freqs > 0.05) & (freqs < 2.0)
+        high_power = float(power[high].sum())
+        low_power = float(power[low].sum())
+        scores.append(high_power / (low_power + 1e-6) * float(np.std(motion)))
+    return np.asarray(scores, dtype=float)
+
+
+def _select_vibration_seed_points(
+    scores: np.ndarray,
+    min_seed_points: int,
+) -> np.ndarray:
+    if not np.any(np.isfinite(scores)) or float(scores.max()) <= 0:
+        raise ValueError("Auto object failed: no vibration-like point motion found.")
+
+    threshold = max(
+        float(np.percentile(scores, 85)),
+        float(scores.mean() + 0.35 * scores.std()),
+    )
+    selected = scores >= threshold
+    if int(selected.sum()) < min_seed_points:
+        selected = scores >= float(np.percentile(scores, 75))
+    if int(selected.sum()) < min_seed_points:
+        raise ValueError("Auto object failed: too few vibration seed points.")
+    return selected
+
+
+def _seed_mask_from_points(
+    points: np.ndarray,
+    shape: tuple[int, int],
+    radius: int,
+) -> np.ndarray:
+    import cv2
+
+    height, width = shape
+    seed_mask = np.zeros((height, width), dtype=np.uint8)
+    for point in points:
+        px, py = int(round(point[0])), int(round(point[1]))
+        if 0 <= px < width and 0 <= py < height:
+            cv2.circle(seed_mask, (px, py), radius, 255, -1)
+    return seed_mask
+
+
+def _largest_seed_component(
+    seed_mask: np.ndarray,
+    seed_points: np.ndarray,
+    seed_scores: np.ndarray,
+) -> np.ndarray:
+    import cv2
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    merged = cv2.morphologyEx(seed_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    num, labels, _stats, _centroids = cv2.connectedComponentsWithStats(merged, 8)
+    if num <= 1:
+        return merged
+
+    best_label = 0
+    best_score = -1.0
+    for label in range(1, num):
+        score = 0.0
+        count = 0
+        for point, point_score in zip(seed_points, seed_scores):
+            px, py = int(round(point[0])), int(round(point[1]))
+            if 0 <= py < labels.shape[0] and 0 <= px < labels.shape[1]:
+                if labels[py, px] == label:
+                    score += float(point_score)
+                    count += 1
+        if count:
+            score = score / float(count**0.5)
+        if score > best_score:
+            best_score = score
+            best_label = label
+    return np.where(labels == best_label, 255, 0).astype(np.uint8)
+
+
+def _grow_object_mask_from_seed(
+    frame: np.ndarray,
+    search_roi: tuple[int, int, int, int],
+    seed_mask: np.ndarray,
+) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    import cv2
+
+    gray_frame = _as_uint8_gray(frame)
+    height, width = gray_frame.shape
+    x, y, w, h = _validate_roi(width, height, search_roi)
+    seed_bbox = _bbox_from_mask(seed_mask)
+    sx, sy, sw, sh = seed_bbox
+    center_x = sx + sw // 2
+    center_y = sy + sh // 2
+    growth_w = min(max(64, sw * 7), max(64, int(width * 0.65)))
+    growth_h = min(max(64, sh * 7), max(64, int(height * 0.75)))
+    gx0 = max(x, center_x - growth_w // 2)
+    gy0 = max(y, center_y - growth_h // 2)
+    gx1 = min(x + w, center_x + growth_w // 2)
+    gy1 = min(y + h, center_y + growth_h // 2)
+    if gx1 <= gx0 or gy1 <= gy0:
+        raise ValueError("Auto object failed: invalid object growth region.")
+
+    grabcut_mask = np.full((height, width), cv2.GC_BGD, dtype=np.uint8)
+    grabcut_mask[gy0:gy1, gx0:gx1] = cv2.GC_PR_BGD
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
+    probable_fg = cv2.dilate(seed_mask, dilate_kernel, iterations=1)
+    grabcut_mask[probable_fg > 0] = cv2.GC_PR_FGD
+    grabcut_mask[seed_mask > 0] = cv2.GC_FGD
+
+    bgr = _as_bgr_frame(frame)
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+    try:
+        cv2.grabCut(
+            bgr,
+            grabcut_mask,
+            None,
+            bgd_model,
+            fgd_model,
+            5,
+            cv2.GC_INIT_WITH_MASK,
+        )
+        object_mask = np.where(
+            (grabcut_mask == cv2.GC_FGD) | (grabcut_mask == cv2.GC_PR_FGD),
+            255,
+            0,
+        ).astype(np.uint8)
+    except cv2.error:
+        object_mask = probable_fg.astype(np.uint8)
+
+    roi_limiter = np.zeros_like(object_mask)
+    roi_limiter[y : y + h, x : x + w] = 255
+    object_mask &= roi_limiter
+    object_mask = _component_touching_seed(object_mask, seed_mask)
+    close_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    object_mask = cv2.morphologyEx(object_mask, cv2.MORPH_CLOSE, close_kernel, 2)
+    object_mask = cv2.dilate(object_mask, close_kernel, iterations=1)
+    object_mask = _prepare_feature_mask(object_mask, search_roi)
+    return object_mask, _bbox_from_mask(object_mask)
+
+
+def _component_touching_seed(object_mask: np.ndarray, seed_mask: np.ndarray) -> np.ndarray:
+    import cv2
+
+    num, labels, stats, _centroids = cv2.connectedComponentsWithStats(object_mask, 8)
+    best_label = 0
+    best_score = -1
+    for label in range(1, num):
+        component = labels == label
+        seed_overlap = int(np.count_nonzero(component & (seed_mask > 0)))
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        score = seed_overlap * 1000 + area
+        if seed_overlap > 0 and score > best_score:
+            best_score = score
+            best_label = label
+    if best_label == 0:
+        return object_mask
+    return np.where(labels == best_label, 255, 0).astype(np.uint8)
+
+
+def _as_uint8_gray(frame: np.ndarray) -> np.ndarray:
+    if frame.ndim == 3:
+        import cv2
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if frame.dtype == np.uint8:
+        return frame
+    clipped = np.clip(frame, 0, 255)
+    return clipped.astype(np.uint8)
+
+
+def _as_bgr_frame(frame: np.ndarray) -> np.ndarray:
+    import cv2
+
+    if frame.ndim == 2:
+        gray = _as_uint8_gray(frame)
+        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    if frame.dtype == np.uint8:
+        return frame
+    clipped = np.clip(frame, 0, 255)
+    return clipped.astype(np.uint8)
+
+
+def _bbox_from_mask(mask: np.ndarray) -> tuple[int, int, int, int]:
+    import cv2
+
+    points = cv2.findNonZero(mask)
+    if points is None:
+        raise ValueError("Feature mask is empty.")
+    return tuple(int(value) for value in cv2.boundingRect(points))
+
+
+def _pad_bbox(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    frame_width: int,
+    frame_height: int,
+    padding: int,
+) -> tuple[int, int, int, int]:
+    x0 = max(0, x - padding)
+    y0 = max(0, y - padding)
+    x1 = min(frame_width, x + w + padding)
+    y1 = min(frame_height, y + h + padding)
+    return x0, y0, x1 - x0, y1 - y0
+
+
+def _mask_source_code(mask_source: str) -> int:
+    return {
+        "manual_roi": 0,
+        "provided_mask": 1,
+        "auto_motion": 2,
+        "auto_vibrating_object": 3,
+    }[mask_source]
 
 
 def _validate_roi(
