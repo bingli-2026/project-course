@@ -77,6 +77,11 @@ Only `normal` samples are used to fit the scaler and PCA. The reconstruction
 error is computed on normal training samples, and the threshold is set to the
 95th percentile.
 
+Visual training now uses a non-leaky holdout split by `run_id` by default.
+`sample_id` is used only as a fallback if independent `run_id` groups are not
+available. Each capture session should therefore be collected with a distinct
+`run_id`.
+
 Testing:
 
 ```text
@@ -110,17 +115,39 @@ pip install -r requirements-realtime.txt
 
 ## Collect Training Data from Hardware
 
-Collect normal visual windows:
+Collect normal visual windows from one live session:
 
 ```bash
-python src/collect_visual_features.py --label normal --windows 100
+python src/collect_visual_features.py \
+  --label normal \
+  --run-id normal_run_01 \
+  --windows 100 \
+  --search-roi 240 180 180 140
 ```
 
-Collect fault visual windows:
+Collect fault visual windows from another live session:
 
 ```bash
-python src/collect_visual_features.py --label fault --windows 100
+python src/collect_visual_features.py \
+  --label fault \
+  --run-id fault_run_01 \
+  --windows 100 \
+  --search-roi 240 180 180 140
 ```
+
+Visual LK collection defaults:
+
+```text
+window_seconds = 2.0
+camera = YUYV 640x480@400fps
+mode = auto_vibrating_points when no manual ROI is supplied
+```
+
+Recommended visual workflow:
+
+- Constrain the target with `--search-roi` whenever the motor occupies only part of the frame.
+- Use a fixed `--roi` only when the motor location is stable across all runs.
+- Do not validate LK accuracy from compressed replay files such as MJPG.
 
 Collect normal vibration windows from the I2C sensor:
 
@@ -189,7 +216,7 @@ results/vibration_pca_results.csv
 Run visual branch only:
 
 ```bash
-python src/realtime_detect.py --visual
+python src/realtime_detect.py --visual --search-roi 240 180 180 140
 ```
 
 Run ADXL345 vibration branch only:
@@ -211,6 +238,10 @@ score, threshold, prediction
 ```
 
 The two branches remain independent. No fusion is performed.
+
+Visual realtime LK defaults to the same safer behavior as collection: if no
+manual `--roi` is supplied, the script automatically searches for the strongest
+compact vibration point cluster instead of tracking the full frame.
 
 ## Periodic PCA Retraining
 

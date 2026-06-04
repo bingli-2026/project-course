@@ -21,6 +21,13 @@ def main() -> None:
     parser.add_argument("--method", choices=["lk", "motion"], default="lk")
     parser.add_argument("--roi", type=int, nargs=4, metavar=("X", "Y", "W", "H"))
     parser.add_argument(
+        "--search-roi",
+        type=int,
+        nargs=4,
+        metavar=("X", "Y", "W", "H"),
+        help="Limit automatic target search to this region before LK tracking.",
+    )
+    parser.add_argument(
         "--auto-roi",
         action="store_true",
         help="Infer a target ROI from foreground motion before LK tracking.",
@@ -34,13 +41,20 @@ def main() -> None:
     parser.add_argument("--min-frequency", type=float, default=1.0)
     parser.add_argument("--max-frequency", type=float)
     parser.add_argument("--label", choices=["normal", "fault"], required=True)
+    parser.add_argument("--run-id", help="Group windows from one capture session under the same run id.")
     parser.add_argument("--windows", type=int, default=30)
-    parser.add_argument("--window-seconds", type=float, default=0.5)
+    parser.add_argument("--window-seconds", type=float, default=2.0)
     parser.add_argument("--output", default="features/visual_motion_features.csv")
     args = parser.parse_args()
 
     root = project_root()
     output = root / args.output
+    run_id = args.run_id or f"visual_{args.label}_{time.strftime('%Y%m%d-%H%M%S')}"
+    auto_object = args.auto_object or (
+        args.method == "lk"
+        and args.roi is None
+        and not args.auto_roi
+    )
 
     for window_id in range(args.windows):
         if args.method == "lk":
@@ -52,11 +66,12 @@ def main() -> None:
                 fps=args.fps,
                 fourcc=args.fourcc,
                 roi=tuple(args.roi) if args.roi else None,
+                search_roi=tuple(args.search_roi) if args.search_roi else None,
                 max_corners=args.max_corners,
                 min_frequency=args.min_frequency,
                 max_frequency=args.max_frequency,
                 auto_roi=args.auto_roi,
-                auto_object=args.auto_object,
+                auto_object=auto_object,
             )
         else:
             record = visual_motion_window_from_camera(
@@ -68,8 +83,8 @@ def main() -> None:
                 fourcc=args.fourcc,
             )
         row = {
-            "sample_id": f"visual_{int(time.time())}_{window_id}",
-            "run_id": "visual_runtime_collect",
+            "sample_id": f"{run_id}_{window_id:04d}",
+            "run_id": run_id,
             "window_id": window_id,
             "start_time": record.start_time,
             "end_time": record.end_time,

@@ -40,6 +40,16 @@ class WindowRecord:
     end_time: float
 
 
+@dataclass
+class VisualPointTracks:
+    points: np.ndarray
+    dx: np.ndarray
+    dy: np.ndarray
+    roi: tuple[int, int, int, int]
+    search_roi: tuple[int, int, int, int]
+    mode: str
+
+
 def parse_numeric_line(line: str) -> list[float]:
     """Parse serial lines such as '0.1,0.2,0.3' or 'ax=0.1 ay=0.2 az=0.3'."""
     return [float(value) for value in NUMBER_PATTERN.findall(line)]
@@ -122,6 +132,7 @@ def visual_vibration_window_from_camera(
     fps: int = 400,
     fourcc: str = "YUYV",
     roi: tuple[int, int, int, int] | None = None,
+    search_roi: tuple[int, int, int, int] | None = None,
     max_corners: int = 80,
     min_tracks: int = 5,
     min_frequency: float = 1.0,
@@ -173,6 +184,7 @@ def visual_vibration_window_from_camera(
         frames=frames,
         timestamps=timestamps,
         roi=roi,
+        search_roi=search_roi,
         max_corners=max_corners,
         min_tracks=min_tracks,
         min_frequency=min_frequency,
@@ -188,6 +200,7 @@ def visual_vibration_features_from_frames(
     frames: list[np.ndarray],
     timestamps: list[float],
     roi: tuple[int, int, int, int] | None = None,
+    search_roi: tuple[int, int, int, int] | None = None,
     mask: np.ndarray | None = None,
     max_corners: int = 80,
     min_tracks: int = 5,
@@ -197,8 +210,6 @@ def visual_vibration_features_from_frames(
     auto_object: bool = False,
     appearance_frame: np.ndarray | None = None,
 ) -> dict[str, float]:
-    import cv2
-
     if len(frames) < 8:
         raise ValueError("Not enough camera frames captured for visual vibration analysis.")
 
@@ -208,79 +219,78 @@ def visual_vibration_features_from_frames(
             f"Mask shape {mask.shape} does not match frame shape {frames[0].shape}."
         )
 
-    search_roi = roi
-    if search_roi is None:
-        search_roi = (0, 0, width, height)
-    _validate_roi(width, height, search_roi)
+    resolved_search_roi = search_roi or roi or (0, 0, width, height)
+    _validate_roi(width, height, resolved_search_roi)
 
-    mask_source = "manual_roi"
+    use_auto_object = auto_object or (
+        roi is None and mask is None and not auto_roi
+    )
+
     if mask is not None:
-        feature_mask = _prepare_feature_mask(mask, search_roi)
-        x, y, w, h = _bbox_from_mask(feature_mask)
-        mask_source = "provided_mask"
-    elif auto_object:
-        feature_mask, (x, y, w, h) = _vibrating_object_mask_from_frames(
+        feature_mask = _prepare_feature_mask(mask, resolved_search_roi)
+        tracks = _track_feature_points(
+            frames=frames,
+            feature_mask=feature_mask,
+            target_roi=_bbox_from_mask(feature_mask),
+            search_roi=resolved_search_roi,
+            mode="provided_mask",
+            max_corners=max_corners,
+            min_tracks=min_tracks,
+        )
+    elif auto_roi:
+        feature_mask, target_roi = _motion_mask_from_frames(
+            frames=frames,
+            search_roi=resolved_search_roi,
+        )
+        tracks = _track_feature_points(
+            frames=frames,
+            feature_mask=feature_mask,
+            target_roi=target_roi,
+            search_roi=resolved_search_roi,
+            mode="auto_motion",
+            max_corners=max_corners,
+            min_tracks=min_tracks,
+        )
+    elif use_auto_object:
+        tracks = _track_auto_vibrating_points(
             frames=frames,
             timestamps=timestamps,
-            search_roi=search_roi,
-            appearance_frame=appearance_frame,
+            search_roi=resolved_search_roi,
+            max_corners=max(max_corners * 4, 180),
+            min_tracks=min_tracks,
+            cluster_radius=max(14, min(width, height) // 16),
+            min_frequency=min_frequency,
+            max_frequency=max_frequency,
         )
-        mask_source = "auto_vibrating_object"
-    elif auto_roi:
-        feature_mask, (x, y, w, h) = _motion_mask_from_frames(
-            frames=frames,
-            search_roi=search_roi,
-        )
-        mask_source = "auto_motion"
-    else:
-        x, y, w, h = _validate_roi(width, height, search_roi)
         feature_mask = np.zeros_like(frames[0], dtype=np.uint8)
+        x, y, w, h = tracks.roi
         feature_mask[y : y + h, x : x + w] = 255
+    else:
+        target_roi = _validate_roi(width, height, roi or resolved_search_roi)
+        feature_mask = np.zeros_like(frames[0], dtype=np.uint8)
+        x, y, w, h = target_roi
+        feature_mask[y : y + h, x : x + w] = 255
+        tracks = _track_feature_points(
+            frames=frames,
+            feature_mask=feature_mask,
+            target_roi=target_roi,
+            search_roi=target_roi,
+            mode="manual_roi",
+            max_corners=max_corners,
+            min_tracks=min_tracks,
+        )
 
-    corners = cv2.goodFeaturesToTrack(
-        frames[0],
-        maxCorners=max_corners,
-        qualityLevel=0.01,
-        minDistance=4,
-        blockSize=7,
-        mask=feature_mask,
-    )
-    if corners is None or len(corners) < min_tracks:
-        raise ValueError("Not enough stable visual corners in ROI. Adjust ROI or lighting.")
-
-    initial = corners.reshape(-1, 2)
-    current = corners
-    valid = np.ones(len(initial), dtype=bool)
-    dx_trace = [np.zeros(len(initial), dtype=float)]
-    dy_trace = [np.zeros(len(initial), dtype=float)]
-
-    lk_params = dict(
-        winSize=(21, 21),
-        maxLevel=3,
-        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01),
-    )
-
-    prev = frames[0]
-    for frame in frames[1:]:
-        next_pts, status, _ = cv2.calcOpticalFlowPyrLK(prev, frame, current, None, **lk_params)
-        if next_pts is None or status is None:
-            break
-        status = status.reshape(-1).astype(bool)
-        valid &= status
-        displacement = next_pts.reshape(-1, 2) - initial
-        dx_trace.append(displacement[:, 0])
-        dy_trace.append(displacement[:, 1])
-        current = next_pts
-        prev = frame
-
-    dx_array = np.asarray(dx_trace, dtype=float)[:, valid]
-    dy_array = np.asarray(dy_trace, dtype=float)[:, valid]
-    if dx_array.shape[1] < min_tracks:
-        raise ValueError("Too few valid visual tracks remained in ROI.")
-
-    dx = _detrend(np.median(dx_array, axis=1))
-    dy = _detrend(np.median(dy_array, axis=1))
+    dx = _detrend(np.median(tracks.dx, axis=1))
+    dy = _detrend(np.median(tracks.dy, axis=1))
     analysis_fps = _effective_fps(timestamps[: len(dx)])
+    consensus_peak, consensus_support = _point_frequency_consensus(
+        tracks.dx,
+        tracks.dy,
+        analysis_fps,
+        min_frequency=min_frequency,
+        max_frequency=max_frequency,
+    )
+    x, y, w, h = tracks.roi
 
     features: dict[str, float] = {
         "roi_x": float(x),
@@ -288,9 +298,12 @@ def visual_vibration_features_from_frames(
         "roi_w": float(w),
         "roi_h": float(h),
         "analysis_fps": float(analysis_fps),
-        "vision_mask_source_code": float(_mask_source_code(mask_source)),
+        "vision_mask_source_code": float(_mask_source_code(tracks.mode)),
         "vision_mask_area_ratio": float(np.mean(feature_mask > 0)),
-        "tracked_points": float(dx_array.shape[1]),
+        "tracked_points": float(tracks.dx.shape[1]),
+        "vision_consensus_peak_hz": float(consensus_peak),
+        "vision_consensus_support": float(consensus_support),
+        "vision_track_box_area_ratio": float(_point_bbox_area(tracks.points) / float(width * height)),
         "vision_dx_std": float(np.std(dx)),
         "vision_dy_std": float(np.std(dy)),
         "vision_dx_peak_to_peak": float(np.max(dx) - np.min(dx)),
@@ -676,6 +689,105 @@ def _track_sparse_points(
     )
 
 
+def _track_feature_points(
+    frames: list[np.ndarray],
+    feature_mask: np.ndarray,
+    target_roi: tuple[int, int, int, int],
+    search_roi: tuple[int, int, int, int],
+    mode: str,
+    max_corners: int,
+    min_tracks: int,
+) -> VisualPointTracks:
+    import cv2
+
+    first = _as_uint8_gray(frames[0])
+    corners = cv2.goodFeaturesToTrack(
+        first,
+        maxCorners=max_corners,
+        qualityLevel=0.008,
+        minDistance=4,
+        blockSize=7,
+        mask=feature_mask,
+    )
+    if corners is None or len(corners) < min_tracks:
+        raise ValueError("Not enough stable visual corners in the selected target region.")
+
+    points, x_tracks, y_tracks = _track_sparse_points(frames, corners)
+    if x_tracks.shape[1] < min_tracks:
+        raise ValueError("Too few valid visual tracks remained in the selected target region.")
+
+    return VisualPointTracks(
+        points=points,
+        dx=x_tracks - points[:, 0],
+        dy=y_tracks - points[:, 1],
+        roi=target_roi,
+        search_roi=search_roi,
+        mode=mode,
+    )
+
+
+def _track_auto_vibrating_points(
+    frames: list[np.ndarray],
+    timestamps: list[float],
+    search_roi: tuple[int, int, int, int],
+    max_corners: int,
+    min_tracks: int,
+    cluster_radius: int,
+    min_frequency: float,
+    max_frequency: float | None,
+) -> VisualPointTracks:
+    import cv2
+
+    height, width = frames[0].shape
+    x, y, w, h = _validate_roi(width, height, search_roi)
+    first = _as_uint8_gray(frames[0])
+    feature_mask = np.zeros((height, width), dtype=np.uint8)
+    feature_mask[y : y + h, x : x + w] = 255
+    corners = cv2.goodFeaturesToTrack(
+        first,
+        maxCorners=max_corners,
+        qualityLevel=0.004,
+        minDistance=3,
+        blockSize=5,
+        mask=feature_mask,
+    )
+    if corners is None or len(corners) < min_tracks:
+        raise ValueError("Auto object failed: not enough feature points in the search area.")
+
+    points, x_tracks, y_tracks = _track_sparse_points(frames, corners)
+    if x_tracks.shape[1] < min_tracks:
+        raise ValueError("Auto object failed: too few valid tracked points.")
+
+    fps = _effective_fps(timestamps[: x_tracks.shape[0]])
+    selected = _select_vibrating_cluster(
+        points=points,
+        x_tracks=x_tracks,
+        y_tracks=y_tracks,
+        fps=fps,
+        min_tracks=min_tracks,
+        cluster_radius=cluster_radius,
+        min_frequency=min_frequency,
+        max_frequency=max_frequency,
+    )
+    if int(selected.sum()) < min_tracks:
+        raise ValueError("Auto object failed: no stable vibration cluster found.")
+
+    selected_points = points[selected]
+    target_roi = _bbox_from_points(
+        selected_points,
+        frame_shape=frames[0].shape,
+        padding=max(2, cluster_radius // 6),
+    )
+    return VisualPointTracks(
+        points=selected_points,
+        dx=x_tracks[:, selected] - selected_points[:, 0],
+        dy=y_tracks[:, selected] - selected_points[:, 1],
+        roi=target_roi,
+        search_roi=search_roi,
+        mode="auto_vibrating_points",
+    )
+
+
 def _vibration_scores(
     x_tracks: np.ndarray,
     y_tracks: np.ndarray,
@@ -699,6 +811,147 @@ def _vibration_scores(
         low_power = float(power[low].sum())
         scores.append(high_power / (low_power + 1e-6) * float(np.std(motion)))
     return np.asarray(scores, dtype=float)
+
+
+def _select_vibrating_cluster(
+    points: np.ndarray,
+    x_tracks: np.ndarray,
+    y_tracks: np.ndarray,
+    fps: float,
+    min_tracks: int,
+    cluster_radius: int,
+    min_frequency: float,
+    max_frequency: float | None,
+) -> np.ndarray:
+    dx_all = x_tracks - x_tracks[0:1, :]
+    dy_all = y_tracks - y_tracks[0:1, :]
+    global_dx = np.median(dx_all, axis=1)
+    global_dy = np.median(dy_all, axis=1)
+
+    scores = np.zeros(x_tracks.shape[1], dtype=float)
+    for index in range(x_tracks.shape[1]):
+        raw_dx = _detrend(dx_all[:, index])
+        raw_dy = _detrend(dy_all[:, index])
+        rel_dx = _detrend(dx_all[:, index] - global_dx)
+        rel_dy = _detrend(dy_all[:, index] - global_dy)
+        scores[index] = max(
+            _point_vibration_score(raw_dx, raw_dy, fps, min_frequency, max_frequency),
+            1.25
+            * _point_vibration_score(rel_dx, rel_dy, fps, min_frequency, max_frequency),
+        )
+
+    finite_scores = scores[np.isfinite(scores)]
+    if len(finite_scores) == 0 or float(finite_scores.max()) <= 0:
+        raise ValueError("Auto object failed: no vibration-like point motion found.")
+
+    selected = scores >= max(
+        float(np.percentile(finite_scores, 88)),
+        float(np.median(finite_scores) + 1.5 * _robust_mad(finite_scores)),
+    )
+    if int(selected.sum()) < min_tracks:
+        selected = scores >= float(np.percentile(finite_scores, 78))
+    if int(selected.sum()) < min_tracks:
+        ranked = np.argsort(scores)[::-1]
+        selected = np.zeros_like(scores, dtype=bool)
+        selected[ranked[:min_tracks]] = True
+
+    return _keep_best_local_cluster(
+        points=points,
+        selected=selected,
+        scores=scores,
+        radius=cluster_radius,
+        min_tracks=min_tracks,
+    )
+
+
+def _point_vibration_score(
+    dx: np.ndarray,
+    dy: np.ndarray,
+    fps: float,
+    min_frequency: float,
+    max_frequency: float | None,
+) -> float:
+    return max(
+        _axis_vibration_score(dx, fps, min_frequency, max_frequency),
+        _axis_vibration_score(dy, fps, min_frequency, max_frequency),
+    )
+
+
+def _axis_vibration_score(
+    values: np.ndarray,
+    fps: float,
+    min_frequency: float,
+    max_frequency: float | None,
+) -> float:
+    if len(values) < 8 or fps <= 0:
+        return 0.0
+    signal = _detrend(values)
+    amplitude = float(np.percentile(signal, 95) - np.percentile(signal, 5))
+    if amplitude <= 1e-4:
+        return 0.0
+
+    window = np.hanning(len(signal))
+    freqs = np.fft.rfftfreq(len(signal), d=1.0 / fps)
+    power = np.abs(np.fft.rfft((signal - signal.mean()) * window)) ** 2
+    upper = max_frequency if max_frequency is not None else 0.45 * fps
+    valid = (freqs >= min_frequency) & (freqs <= upper)
+    if not np.any(valid):
+        return 0.0
+    band_power = power[valid]
+    peak_power = float(np.max(band_power))
+    noise_floor = float(np.median(band_power)) + 1e-12
+    total_power = float(np.sum(band_power)) + 1e-12
+    peak_share = peak_power / total_power
+    return amplitude * peak_share * np.log1p(peak_power / noise_floor)
+
+
+def _robust_mad(values: np.ndarray) -> float:
+    median = float(np.median(values))
+    return float(np.median(np.abs(values - median))) + 1e-12
+
+
+def _keep_best_local_cluster(
+    points: np.ndarray,
+    selected: np.ndarray,
+    scores: np.ndarray,
+    radius: int,
+    min_tracks: int,
+) -> np.ndarray:
+    selected_indices = np.flatnonzero(selected)
+    if len(selected_indices) <= min_tracks:
+        return selected
+
+    selected_points = points[selected_indices]
+    best_indices: np.ndarray | None = None
+    best_score = -1.0
+    radius = max(1, radius)
+
+    for center_index in selected_indices:
+        deltas = selected_points - points[center_index]
+        distances = np.sqrt(np.sum(deltas * deltas, axis=1))
+        local_indices = selected_indices[distances <= radius]
+        if len(local_indices) < min_tracks:
+            continue
+        bbox_area = _point_bbox_area(points[local_indices])
+        score_sum = float(np.sum(scores[local_indices]))
+        cluster_score = score_sum * float(len(local_indices) ** 0.35) / float(
+            max(1.0, bbox_area) ** 0.30
+        )
+        if cluster_score > best_score:
+            best_score = cluster_score
+            best_indices = local_indices
+
+    if best_indices is None:
+        ranked = selected_indices[np.argsort(scores[selected_indices])[::-1]]
+        center = ranked[0]
+        deltas = selected_points - points[center]
+        distances = np.sqrt(np.sum(deltas * deltas, axis=1))
+        nearest_order = np.argsort(distances)
+        best_indices = selected_indices[nearest_order[:min_tracks]]
+
+    clustered = np.zeros_like(selected)
+    clustered[best_indices] = True
+    return clustered
 
 
 def _select_vibration_seed_points(
@@ -881,6 +1134,25 @@ def _bbox_from_mask(mask: np.ndarray) -> tuple[int, int, int, int]:
     return tuple(int(value) for value in cv2.boundingRect(points))
 
 
+def _bbox_from_points(
+    points: np.ndarray,
+    frame_shape: tuple[int, int],
+    padding: int,
+) -> tuple[int, int, int, int]:
+    height, width = frame_shape
+    x0 = max(0, int(np.floor(points[:, 0].min())) - padding)
+    y0 = max(0, int(np.floor(points[:, 1].min())) - padding)
+    x1 = min(width, int(np.ceil(points[:, 0].max())) + padding)
+    y1 = min(height, int(np.ceil(points[:, 1].max())) + padding)
+    return x0, y0, max(1, x1 - x0), max(1, y1 - y0)
+
+
+def _point_bbox_area(points: np.ndarray) -> float:
+    width = float(np.max(points[:, 0]) - np.min(points[:, 0]) + 1.0)
+    height = float(np.max(points[:, 1]) - np.min(points[:, 1]) + 1.0)
+    return width * height
+
+
 def _pad_bbox(
     x: int,
     y: int,
@@ -903,6 +1175,7 @@ def _mask_source_code(mask_source: str) -> int:
         "provided_mask": 1,
         "auto_motion": 2,
         "auto_vibrating_object": 3,
+        "auto_vibrating_points": 3,
     }[mask_source]
 
 
@@ -933,6 +1206,75 @@ def _detrend(values: np.ndarray) -> np.ndarray:
     x = np.arange(len(values), dtype=float)
     slope, intercept = np.polyfit(x, values, 1)
     return values - (slope * x + intercept)
+
+
+def _point_frequency_consensus(
+    dx_tracks: np.ndarray,
+    dy_tracks: np.ndarray,
+    fps: float,
+    min_frequency: float,
+    max_frequency: float | None,
+) -> tuple[float, int]:
+    if dx_tracks.shape[0] < 8 or dx_tracks.shape[1] == 0 or fps <= 0:
+        return 0.0, 0
+
+    bin_width = max(0.5, fps / float(dx_tracks.shape[0]))
+    votes: list[tuple[float, float]] = []
+    for point_index in range(dx_tracks.shape[1]):
+        candidates = [
+            _point_axis_peak(dx_tracks[:, point_index], fps, min_frequency, max_frequency),
+            _point_axis_peak(dy_tracks[:, point_index], fps, min_frequency, max_frequency),
+        ]
+        freq, weight = max(candidates, key=lambda item: item[1])
+        if freq > 0 and weight > 0:
+            votes.append((freq, weight))
+
+    if not votes:
+        return 0.0, 0
+
+    bins: dict[int, float] = {}
+    for freq, weight in votes:
+        key = int(round(freq / bin_width))
+        bins[key] = bins.get(key, 0.0) + weight
+    best_key = max(bins, key=bins.get)
+    selected = [
+        (freq, weight)
+        for freq, weight in votes
+        if abs(int(round(freq / bin_width)) - best_key) <= 1
+    ]
+    weight_sum = sum(weight for _freq, weight in selected)
+    if weight_sum <= 0:
+        return 0.0, 0
+    consensus = sum(freq * weight for freq, weight in selected) / weight_sum
+    return float(consensus), len(selected)
+
+
+def _point_axis_peak(
+    values: np.ndarray,
+    fps: float,
+    min_frequency: float,
+    max_frequency: float | None,
+) -> tuple[float, float]:
+    signal = _detrend(values)
+    if len(signal) < 8:
+        return 0.0, 0.0
+    amplitude = float(np.percentile(signal, 95) - np.percentile(signal, 5))
+    if amplitude <= 1e-4:
+        return 0.0, 0.0
+    window = np.hanning(len(signal))
+    freqs = np.fft.rfftfreq(len(signal), d=1.0 / fps)
+    power = np.abs(np.fft.rfft((signal - signal.mean()) * window)) ** 2
+    upper = max_frequency if max_frequency is not None else 0.45 * fps
+    valid = (freqs >= min_frequency) & (freqs <= upper)
+    if not np.any(valid):
+        return 0.0, 0.0
+    valid_freqs = freqs[valid]
+    valid_power = power[valid]
+    peak_index = int(np.argmax(valid_power))
+    noise_floor = float(np.median(valid_power)) + 1e-12
+    peak_power = float(valid_power[peak_index])
+    score = amplitude * np.log1p(peak_power / noise_floor)
+    return float(valid_freqs[peak_index]), float(score)
 
 
 def _spectrum_features(
