@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -113,6 +114,56 @@ def normal_only(features: pd.DataFrame, labels: pd.Series | None) -> pd.DataFram
     if labels is None:
         raise ValueError("Training requires a label column with normal/fault values.")
     return features.loc[labels == "normal"].copy()
+
+
+def choose_group_column(
+    df: pd.DataFrame,
+    preferred: tuple[str, ...] = ("run_id", "sample_id"),
+) -> str | None:
+    for column in preferred:
+        if column in df.columns and df[column].nunique(dropna=True) >= 2:
+            return column
+    return None
+
+
+def split_holdout_by_group(
+    df: pd.DataFrame,
+    *,
+    group_column: str | None = None,
+    test_ratio: float = 0.25,
+) -> tuple[pd.DataFrame, pd.DataFrame, str, list[str], list[str]]:
+    if not 0 < test_ratio < 1:
+        raise ValueError("test_ratio must be between 0 and 1.")
+
+    resolved_group = group_column or choose_group_column(df)
+    if resolved_group is None:
+        raise ValueError(
+            "Cannot create a non-leaky holdout split. Provide at least two distinct "
+            "`run_id` or `sample_id` values."
+        )
+    if resolved_group not in df.columns:
+        raise ValueError(f"Group column not found: {resolved_group}")
+
+    groups = df[resolved_group].astype(str)
+    ordered_groups = list(dict.fromkeys(groups.tolist()))
+    if len(ordered_groups) < 2:
+        raise ValueError(
+            f"Need at least two distinct groups in `{resolved_group}` to split train/test."
+        )
+
+    test_count = max(1, int(math.ceil(len(ordered_groups) * test_ratio)))
+    test_count = min(test_count, len(ordered_groups) - 1)
+    train_groups = ordered_groups[:-test_count]
+    test_groups = ordered_groups[-test_count:]
+
+    train_df = df.loc[groups.isin(train_groups)].copy()
+    test_df = df.loc[groups.isin(test_groups)].copy()
+    if train_df.empty or test_df.empty:
+        raise ValueError(
+            f"Resolved split on `{resolved_group}` produced an empty train or test set. "
+            "Collect more independent runs first."
+        )
+    return train_df, test_df, resolved_group, train_groups, test_groups
 
 
 def build_result_frame(
