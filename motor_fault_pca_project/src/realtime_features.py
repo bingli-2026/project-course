@@ -364,21 +364,30 @@ def vibration_window_from_i2c(
 
     with SMBus(bus_id) as bus:
         _init_ms6dsv(bus, address)
-        delay = 1.0 / sample_rate_hz if sample_rate_hz > 0 else 0.02
+        period_s = 1.0 / sample_rate_hz if sample_rate_hz > 0 else 0.0
+        capture_start = time.perf_counter()
+        next_deadline = capture_start
 
-        while time.time() - start_time < window_seconds:
-            accel_samples.append(_read_vec3(bus, address, REG_OUTX_L_A))
+        while time.perf_counter() - capture_start < window_seconds:
+            gyro, accel = _read_ms6dsv_burst_sample(bus, address)
+            accel_samples.append(accel)
             if include_gyro:
-                gyro_samples.append(_read_vec3(bus, address, REG_OUTX_L_G))
-            time.sleep(delay)
+                gyro_samples.append(gyro)
+            if period_s > 0:
+                next_deadline += period_s
+                sleep_s = next_deadline - time.perf_counter()
+                if sleep_s > 0:
+                    time.sleep(sleep_s)
 
     end_time = time.time()
+    elapsed_s = max(1e-9, end_time - start_time)
+    effective_sample_rate_hz = len(accel_samples) / elapsed_s
     return WindowRecord(
         features=vibration_features_from_i2c_samples(
             accel_samples=accel_samples,
             gyro_samples=gyro_samples if include_gyro else None,
-            sample_rate_hz=sample_rate_hz,
-            window_seconds=window_seconds,
+            sample_rate_hz=effective_sample_rate_hz,
+            window_seconds=elapsed_s,
         ),
         start_time=start_time,
         end_time=end_time,
@@ -1409,6 +1418,24 @@ def _read_vec3(bus, address: int, base_reg: int) -> tuple[int, int, int]:
         _to_i16(data[2], data[3]),
         _to_i16(data[4], data[5]),
     )
+
+
+def _read_ms6dsv_burst_sample(
+    bus,
+    address: int,
+) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    data = bus.read_i2c_block_data(address, REG_OUTX_L_G, 12)
+    gyro = (
+        _to_i16(data[0], data[1]),
+        _to_i16(data[2], data[3]),
+        _to_i16(data[4], data[5]),
+    )
+    accel = (
+        _to_i16(data[6], data[7]),
+        _to_i16(data[8], data[9]),
+        _to_i16(data[10], data[11]),
+    )
+    return gyro, accel
 
 
 def _to_i16(lo: int, hi: int) -> int:
