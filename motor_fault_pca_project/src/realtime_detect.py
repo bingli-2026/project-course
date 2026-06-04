@@ -22,10 +22,10 @@ def main() -> None:
     parser.add_argument("--visual", action="store_true", help="Enable camera visual PCA branch.")
     parser.add_argument("--vibration", action="store_true", help="Enable vibration serial PCA branch.")
     parser.add_argument("--camera-index", type=int, default=0)
-    parser.add_argument("--width", type=int, default=160)
-    parser.add_argument("--height", type=int, default=140)
-    parser.add_argument("--fps", type=int, default=420)
-    parser.add_argument("--fourcc", default="YUY2")
+    parser.add_argument("--width", type=int, default=640)
+    parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--fps", type=int, default=400)
+    parser.add_argument("--fourcc", default="YUYV")
     parser.add_argument("--visual-method", choices=["lk", "motion"], default="lk")
     parser.add_argument("--roi", type=int, nargs=4, metavar=("X", "Y", "W", "H"))
     parser.add_argument(
@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument("--baudrate", type=int, default=921600)
     parser.add_argument("--i2c-bus", type=int, default=7)
     parser.add_argument("--i2c-addr", type=lambda value: int(value, 0), default=0x6A)
-    parser.add_argument("--sample-rate-hz", type=int, default=60)
+    parser.add_argument("--sample-rate-hz", type=int, default=400)
     parser.add_argument("--include-gyro", action="store_true")
     parser.add_argument(
         "--axis-start-index",
@@ -57,8 +57,8 @@ def main() -> None:
             "Use 0 for 'ax,ay,az'; use 2 for 'seq,tick,ax,ay,az'."
         ),
     )
-    parser.add_argument("--window-seconds", type=float, default=0.25)
-    parser.add_argument("--interval-seconds", type=float, default=0.05)
+    parser.add_argument("--window-seconds", type=float, default=0.5)
+    parser.add_argument("--interval-seconds", type=float, default=0.25)
     parser.add_argument(
         "--save-normal-candidates",
         action="store_true",

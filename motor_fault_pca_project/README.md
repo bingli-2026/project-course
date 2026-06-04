@@ -10,7 +10,7 @@ There is no visual-vibration fusion, and no PyTorch or TensorFlow dependency.
 
 Runtime hardware target:
 
-- Camera: USB UVC global camera, `YUY2 160x140@420fps`
+- Camera: USB UVC global camera, `YUYV 640x480@400fps`
 - Vibration: I2C motion sensor at bus `7`, address `0x6A`, `WHO_AM_I=0x70`
 - Host: Orange Pi Linux
 
@@ -139,8 +139,8 @@ Default vibration I2C settings:
 ```text
 i2c_bus = 7
 i2c_addr = 0x6A
-sample_rate_hz = 60
-window_seconds = 0.25
+sample_rate_hz = 400
+window_seconds = 0.5
 ```
 
 Serial mode is still available if a later STM32 USB CDC bridge is used:

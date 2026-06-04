@@ -30,7 +30,7 @@ uv build                                   # build the package
 uv run project-course-api                  # FastAPI server (port 8000)
 uv run project-course-api-dev              # FastAPI with hot reload
 uv run project-course-camera list          # discover V4L2 devices
-uv run project-course-camera probe --device 0 --backend v4l2 --fourcc YUYV --width 1280 --height 720 --fps 60
+uv run project-course-camera probe --device 0 --backend v4l2 --fourcc YUYV --width 640 --height 480 --fps 400
 uv run python scripts/generate_demo_samples.py   # seed data/samples/ for the dashboard
 ```
 
@@ -69,7 +69,7 @@ python src/realtime_detect.py --visual --vibration --vibration-source i2c
 ### FastAPI service (`src/project_course/api`)
 
 - `app.py` — `create_app()` factory; lifespan: `db.init_db()` → mark orphaned-running tasks failed → `scan_directory()` ingests `data/samples/` → start `simulator_lifespan()`.
-- `config.py` — `pydantic_settings` reads env vars with `PROJECT_COURSE_` prefix. Default window 0.5s/0.25s hop, IMU 1680 Hz, camera `YUY2_160x140_420fps`, analysis 420 fps.
+- `config.py` — `pydantic_settings` reads env vars with `PROJECT_COURSE_` prefix. Default window 0.5s/0.25s hop, IMU 400 Hz, camera `YUYV_640x480_400fps`, analysis 400 fps.
 - `storage/db.py` — SQLite at `data/project_course.sqlite3`. Three tables: `tasks`, `window_samples` (live per-window payload JSON), `history_samples` (offline-ingested CSV/Parquet metadata).
 - `storage/ingest.py` — scans `data/samples/` for `.csv`/`.parquet`, validates required columns (`sample_id`, `window_index`, `center_time_s`), splits `vision_*` vs `sensor_*` populated columns, upserts into `history_samples`. Files must contain exactly one `sample_id`.
 - `live/state.py` + `live/simulator.py` — `LIVE_STATE` is a single-task in-memory ring buffer (`settings.window_buffer_size`, default 240 ≈ 2 min at 0.5s hop). The simulator is the **default data source** when no real pipeline is attached; it produces synthetic per-window dual-modal features for a profile (normal/unbalance/loose/misaligned). Real feature pipelines should call `live.publish_window` and `live.record_sync_quality` — the same hooks the simulator uses.
@@ -87,9 +87,9 @@ Reusable V4L2/OpenCV helpers — discovery (`v4l2.py`), capture config + probing
 
 ### Sampling + fusion design (per `specs/001-dual-modal-monitoring/plan.md`)
 
-- Hardware: USB UVC camera `YUY2 160x140@420fps`; STM32 six-axis IMU @ 1680 Hz over USB CDC `921600 bps` (≈62% serial utilization).
+- Hardware: USB UVC camera `YUYV 640x480@400fps`; six-axis IMU capture target `400 Hz` on the Orange Pi / sensor path.
 - Time sync: linear fit `t_host = a · t_imu_tick_us + b` over a sliding 4.0s window, re-fit every 1.0s; require R² ≥ 0.995 or flag window as `sync_fit_failed`. MCU tick is 32-bit @ 1 MHz with host-side unwrap.
-- Window: default `window_size_s=0.25`, `window_hop_s=0.05` (legacy-validated); stable-demo mode `1.0`/`0.5`. Note `config.py` ships `0.5`/`0.25` as defaults — the plan and the API config differ on purpose; the API runs at the demo cadence and accepts overrides per-task.
+- Window: default `window_size_s=0.5`, `window_hop_s=0.25`; stable-demo mode `1.0`/`0.5`. This now matches the API defaults and deployment baseline.
 - Fusion is a **join on `sample_id + window_index`**: build `vision_*` row, build `sensor_*` row, join, feed to RF/XGBoost/SVM. `fused_*` fields are display-only.
 - Incremental update gate: ≥ 90 windows from ≥ 3 independent tasks before retraining.
 - Backend rejects tasks whose STM32 handshake (`protocol_version`, `imu_sample_rate_hz`, `axis_order`, `tick_hz`, `frame_format`) disagrees with task config.

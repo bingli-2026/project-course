@@ -19,13 +19,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = REPO_ROOT / "data" / "samples"
 
 WINDOW_COUNT = 24
-ANALYSIS_FPS = 420.0
+ANALYSIS_FPS = 400.0
 WINDOW_DURATION_S = 0.5
+WINDOW_HOP_S = 0.25
 
 
 def _row(sample_id: str, label: str, window_index: int, profile: dict) -> dict:
     rng = np.random.default_rng(seed=hash((sample_id, window_index)) & 0xFFFFFFFF)
-    t = window_index * WINDOW_DURATION_S
+    t = window_index * WINDOW_HOP_S
+    window_start_frame = int(round(window_index * WINDOW_HOP_S * ANALYSIS_FPS))
+    window_end_frame = window_start_frame + int(round(WINDOW_DURATION_S * ANALYSIS_FPS))
 
     base_freq_x = profile["vision_dx"] + rng.normal(0, profile["jitter"])
     base_freq_y = profile["vision_dy"] + rng.normal(0, profile["jitter"])
@@ -40,8 +43,8 @@ def _row(sample_id: str, label: str, window_index: int, profile: dict) -> dict:
         "modality": "fused",
         "source_name": f"{sample_id}.mp4",
         "window_index": window_index,
-        "window_start_frame": window_index * 210,
-        "window_end_frame": (window_index + 1) * 210,
+        "window_start_frame": window_start_frame,
+        "window_end_frame": window_end_frame,
         "center_time_s": round(t + WINDOW_DURATION_S / 2, 4),
         "analysis_fps": ANALYSIS_FPS,
         # vision
@@ -60,7 +63,7 @@ def _row(sample_id: str, label: str, window_index: int, profile: dict) -> dict:
         "vision_dx_spectral_entropy": round(profile["entropy"] + rng.normal(0, 0.02), 4),
         "vision_dy_spectral_entropy": round(profile["entropy"] + rng.normal(0, 0.02), 4),
         # sensor — accelerometer spectrum (subset; full schema can be added later)
-        "sensor_sample_rate_hz": 1600.0,
+        "sensor_sample_rate_hz": 400.0,
         "sensor_window_duration_s": WINDOW_DURATION_S,
         "sensor_ax_rms": round(profile["ax_rms"] + rng.normal(0, 0.01), 4),
         "sensor_ay_rms": round(profile["ay_rms"] + rng.normal(0, 0.01), 4),

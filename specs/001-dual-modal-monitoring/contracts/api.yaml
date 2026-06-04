@@ -116,20 +116,20 @@ components:
           type: string
         camera_mode:
           type: string
-          enum: [YUY2_160x140_420fps]
-          default: YUY2_160x140_420fps
+          enum: [YUYV_640x480_400fps]
+          default: YUYV_640x480_400fps
         imu_sample_rate_hz:
           type: integer
-          default: 1680
-          minimum: 1000
+          default: 400
+          minimum: 100
           maximum: 4000
         window_size_s:
           type: number
-          default: 0.25
+          default: 0.5
           minimum: 0.05
         window_hop_s:
           type: number
-          default: 0.05
+          default: 0.25
           minimum: 0.01
         roi_x:
           type: integer

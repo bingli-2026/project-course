@@ -126,7 +126,7 @@ publish_window({
     "center_time_s": w * 0.25 + 0.25,
     "label": "unbalance",
     "modality": "fused",
-    "analysis_fps": 420.0,
+    "analysis_fps": 400.0,
     "vision_dx_peak_hz": 24.5,
     "vision_dy_peak_hz": 26.0,
     "vision_dx_peak_power": 1.4,
@@ -216,11 +216,11 @@ Rules:
 |---|---|
 | `window_size_s` | 0.5 |
 | `window_hop_s` | 0.25 |
-| `imu_sample_rate_hz` | 1680 |
-| `camera_mode` | `YUY2_160x140_420fps` |
-| `analysis_fps` | 420.0 |
+| `imu_sample_rate_hz` | 400 |
+| `camera_mode` | `YUYV_640x480_400fps` |
+| `analysis_fps` | 400.0 |
 
-Configurable per-task via `POST /api/v1/tasks` request body. The defaults above are set in `src/project_course/api/config.py`. The earlier `0.25 / 0.05` values from `specs/.../plan.md` are kept as legacy reference.
+Configurable per-task via `POST /api/v1/tasks` request body. The defaults above are set in `src/project_course/api/config.py`.
 
 ## 8. Validation Behavior
 

@@ -17,6 +17,7 @@ dependencies = [
 [project.scripts]
 project-course = "project_course.main:main"
 project-course-camera = "project_course.camera.cli:main"
+project-course-ms6dsv = "project_course.sensors.ms6dsv_cli:main"
 project-course-api = "project_course.api.__main__:main"
 project-course-api-dev = "project_course.api.__main__:dev_main"
 

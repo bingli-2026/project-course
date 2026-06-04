@@ -24,10 +24,11 @@ REG_CTRL2 = 0x11
 REG_CTRL3 = 0x12
 REG_CTRL6 = 0x15
 REG_CTRL8 = 0x17
+REG_HAODR_CFG = 0x62
 REG_OUTX_L_G = 0x22
 REG_OUTX_L_A = 0x28
 
-ODR_60HZ = 0x05
+ODR_HA02_400HZ = 0x28
 FS_G_2000DPS = 0x04
 FS_XL_2G = 0x00
 
@@ -65,10 +66,10 @@ def align_feature_dict(features: dict[str, float], feature_columns: Iterable[str
 def visual_motion_window_from_camera(
     camera_index: int,
     window_seconds: float,
-    width: int = 160,
-    height: int = 140,
-    fps: int = 420,
-    fourcc: str = "YUY2",
+    width: int = 640,
+    height: int = 480,
+    fps: int = 400,
+    fourcc: str = "YUYV",
     resize_width: int | None = 320,
 ) -> WindowRecord:
     import cv2
@@ -116,10 +117,10 @@ def visual_motion_window_from_camera(
 def visual_vibration_window_from_camera(
     camera_index: int,
     window_seconds: float,
-    width: int = 160,
-    height: int = 140,
-    fps: int = 420,
-    fourcc: str = "YUY2",
+    width: int = 640,
+    height: int = 480,
+    fps: int = 400,
+    fourcc: str = "YUYV",
     roi: tuple[int, int, int, int] | None = None,
     max_corners: int = 80,
     min_tracks: int = 5,
@@ -304,7 +305,7 @@ def vibration_window_from_serial(
     port: str,
     baudrate: int,
     window_seconds: float,
-    sample_rate_hz: int = 1680,
+    sample_rate_hz: int = 400,
     min_values_per_line: int = 3,
     axis_start_index: int = 0,
 ) -> WindowRecord:
@@ -339,7 +340,7 @@ def vibration_window_from_i2c(
     bus_id: int = MS6DSV_I2C_BUS,
     address: int = MS6DSV_I2C_ADDR,
     window_seconds: float = 2.0,
-    sample_rate_hz: int = 60,
+    sample_rate_hz: int = 400,
     include_gyro: bool = False,
 ) -> WindowRecord:
     from smbus2 import SMBus
@@ -373,7 +374,7 @@ def vibration_window_from_i2c(
 
 def vibration_features_from_samples(
     samples: list[list[float]],
-    sample_rate_hz: int = 1680,
+    sample_rate_hz: int = 400,
     window_seconds: float | None = None,
 ) -> dict[str, float]:
     if not samples:
@@ -405,7 +406,7 @@ def vibration_features_from_samples(
 def vibration_features_from_i2c_samples(
     accel_samples: list[tuple[int, int, int]],
     gyro_samples: list[tuple[int, int, int]] | None = None,
-    sample_rate_hz: int = 60,
+    sample_rate_hz: int = 400,
     window_seconds: float | None = None,
 ) -> dict[str, float]:
     if not accel_samples:
@@ -1040,8 +1041,8 @@ def _init_ms6dsv(bus, address: int) -> None:
 
     # CTRL3: BDU=1(bit6), IF_INC=1(bit2)
     _update_bits(bus, address, REG_CTRL3, 0x44, 0x44)
-    _update_bits(bus, address, REG_CTRL1, 0x0F, ODR_60HZ)
-    _update_bits(bus, address, REG_CTRL2, 0x0F, ODR_60HZ)
+    _set_ms6dsv_odr(bus, address, REG_CTRL1, ODR_HA02_400HZ)
+    _set_ms6dsv_odr(bus, address, REG_CTRL2, ODR_HA02_400HZ)
     _update_bits(bus, address, REG_CTRL6, 0x0F, FS_G_2000DPS)
     _update_bits(bus, address, REG_CTRL8, 0x03, FS_XL_2G)
 
@@ -1050,6 +1051,13 @@ def _update_bits(bus, address: int, reg: int, mask: int, value: int) -> None:
     current = bus.read_byte_data(address, reg)
     updated = (current & ~mask) | (value & mask)
     bus.write_byte_data(address, reg, updated)
+
+
+def _set_ms6dsv_odr(bus, address: int, reg: int, encoded_odr: int) -> None:
+    _update_bits(bus, address, reg, 0x0F, encoded_odr)
+    haodr_sel = (encoded_odr >> 4) & 0x0F
+    if haodr_sel:
+        _update_bits(bus, address, REG_HAODR_CFG, 0x03, haodr_sel)
 
 
 def _read_vec3(bus, address: int, base_reg: int) -> tuple[int, int, int]:

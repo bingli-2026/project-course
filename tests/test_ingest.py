@@ -16,18 +16,24 @@ from project_course.api.storage.ingest import (
     scan_directory,
 )
 
+ANALYSIS_FPS = 400.0
+WINDOW_SIZE_S = 0.5
+WINDOW_HOP_S = 0.25
 
-def _vision_row(sample_id: str, window_index: int, t: float, label: str = "normal") -> dict:
+
+def _vision_row(sample_id: str, window_index: int, label: str = "normal") -> dict:
+    window_start_frame = int(round(window_index * WINDOW_HOP_S * ANALYSIS_FPS))
+    window_end_frame = window_start_frame + int(round(WINDOW_SIZE_S * ANALYSIS_FPS))
     return {
         "sample_id": sample_id,
         "label": label,
         "modality": "vision",
         "source_name": f"{sample_id}.mp4",
         "window_index": window_index,
-        "window_start_frame": window_index * 100,
-        "window_end_frame": (window_index + 1) * 100,
-        "center_time_s": t,
-        "analysis_fps": 420.0,
+        "window_start_frame": window_start_frame,
+        "window_end_frame": window_end_frame,
+        "center_time_s": round(window_index * WINDOW_HOP_S + WINDOW_SIZE_S / 2, 4),
+        "analysis_fps": ANALYSIS_FPS,
         "vision_dx_peak_hz": 12.5 + window_index * 0.1,
         "vision_dy_peak_hz": 14.0 + window_index * 0.1,
         "vision_dx_peak_power": 0.85,
@@ -48,7 +54,7 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_ingest_valid_csv(isolated_data_dir: Path) -> None:
-    df = pd.DataFrame([_vision_row("s001", i, i * 0.5) for i in range(4)])
+    df = pd.DataFrame([_vision_row("s001", i) for i in range(4)])
     csv_path = isolated_data_dir / "s001.csv"
     df.to_csv(csv_path, index=False)
 
@@ -78,7 +84,7 @@ def test_ingest_missing_columns(isolated_data_dir: Path) -> None:
 
 
 def test_ingest_rejects_multiple_sample_ids(isolated_data_dir: Path) -> None:
-    rows = [_vision_row("a", 0, 0.0), _vision_row("b", 1, 0.5)]
+    rows = [_vision_row("a", 0), _vision_row("b", 1)]
     csv_path = isolated_data_dir / "mixed.csv"
     pd.DataFrame(rows).to_csv(csv_path, index=False)
 
@@ -87,7 +93,7 @@ def test_ingest_rejects_multiple_sample_ids(isolated_data_dir: Path) -> None:
 
 
 def test_scan_directory_skips_invalid_files(isolated_data_dir: Path) -> None:
-    good = pd.DataFrame([_vision_row("good", i, i * 0.5) for i in range(3)])
+    good = pd.DataFrame([_vision_row("good", i) for i in range(3)])
     good.to_csv(isolated_data_dir / "good.csv", index=False)
 
     bad = pd.DataFrame([{"foo": "bar"}])
@@ -102,7 +108,7 @@ def test_scan_directory_skips_invalid_files(isolated_data_dir: Path) -> None:
 
 
 def test_history_upload_round_trip(isolated_data_dir: Path) -> None:
-    df = pd.DataFrame([_vision_row("up001", i, i * 0.25) for i in range(2)])
+    df = pd.DataFrame([_vision_row("up001", i) for i in range(2)])
     csv_path = isolated_data_dir.parent / "upload.csv"
     df.to_csv(csv_path, index=False)
 
@@ -148,7 +154,7 @@ def test_history_upload_rejects_invalid_schema(isolated_data_dir: Path) -> None:
 
 
 def test_history_detail_returns_rows(isolated_data_dir: Path) -> None:
-    df = pd.DataFrame([_vision_row("ep001", i, i * 0.5) for i in range(3)])
+    df = pd.DataFrame([_vision_row("ep001", i) for i in range(3)])
     df.to_csv(isolated_data_dir / "ep001.csv", index=False)
     scan_directory()
 
@@ -170,4 +176,4 @@ def test_history_detail_returns_rows(isolated_data_dir: Path) -> None:
         ts_body = ts.json()
         assert ts_body["fields"] == ["vision_dx_peak_hz", "vision_dy_peak_hz"]
         assert len(ts_body["points"]) == 3
-        assert ts_body["points"][0]["center_time_s"] == 0.0
+        assert ts_body["points"][0]["center_time_s"] == 0.25

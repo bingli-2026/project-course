@@ -15,11 +15,11 @@ def main() -> None:
     parser.add_argument("--baudrate", type=int, default=921600)
     parser.add_argument("--i2c-bus", type=int, default=7)
     parser.add_argument("--i2c-addr", type=lambda value: int(value, 0), default=0x6A)
-    parser.add_argument("--sample-rate-hz", type=int, default=60)
+    parser.add_argument("--sample-rate-hz", type=int, default=400)
     parser.add_argument("--include-gyro", action="store_true")
     parser.add_argument("--label", choices=["normal", "fault"], required=True)
     parser.add_argument("--windows", type=int, default=30)
-    parser.add_argument("--window-seconds", type=float, default=0.25)
+    parser.add_argument("--window-seconds", type=float, default=0.5)
     parser.add_argument("--min-values-per-line", type=int, default=3)
     parser.add_argument(
         "--axis-start-index",

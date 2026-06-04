@@ -58,6 +58,8 @@ def test_task_create_and_get(client: TestClient) -> None:
     body = detail.json()
     assert body["task_id"] == task_id
     assert body["device_id"] == "rig-test"
+    assert body["camera_mode"] == "YUYV_640x480_400fps"
+    assert body["imu_sample_rate_hz"] == 400
     assert body["window_size_s"] == 0.5
     assert body["window_hop_s"] == 0.25
 
@@ -181,8 +183,8 @@ def test_orphaned_running_task_is_failed_on_startup(tmp_path, monkeypatch) -> No
         "task_id": "orphan-001", "task_status": "running",
         "created_at": "2026-05-11T10:00:00+00:00",
         "started_at": "2026-05-11T10:00:00+00:00", "finished_at": None,
-        "device_id": "rig-x", "camera_mode": "YUY2_160x140_420fps",
-        "imu_sample_rate_hz": 1680, "window_size_s": 0.5, "window_hop_s": 0.25,
+        "device_id": "rig-x", "camera_mode": "YUYV_640x480_400fps",
+        "imu_sample_rate_hz": 400, "window_size_s": 0.5, "window_hop_s": 0.25,
         "roi_x": None, "roi_y": None, "roi_w": None, "roi_h": None,
         "model_version": None, "predicted_state": None, "confidence_summary": None,
         "effective_window_count": 0,

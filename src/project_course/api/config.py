@@ -35,12 +35,12 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
-    # Windowing defaults (team-confirmed 2026-05-10; spec listed 0.25/0.05 legacy)
+    # Deployment defaults confirmed on orangepiaipro-20t for ~20 Hz machinery.
     window_size_s: float = 0.5
     window_hop_s: float = 0.25
-    imu_sample_rate_hz: int = 1680
-    camera_mode: str = "YUY2_160x140_420fps"
-    analysis_fps: float = 420.0
+    imu_sample_rate_hz: int = 400
+    camera_mode: str = "YUYV_640x480_400fps"
+    analysis_fps: float = 400.0
 
     # Live state buffer
     window_buffer_size: int = 240  # ~2 minutes at 0.5s hop

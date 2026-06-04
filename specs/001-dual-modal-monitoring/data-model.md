@@ -10,10 +10,10 @@
   - `started_at` (datetime, optional)
   - `finished_at` (datetime, optional)
   - `device_id` (string, required)
-  - `camera_mode` (string, required, 固定 `YUY2_160x140_420fps`)
-  - `imu_sample_rate_hz` (int, required, default 1680)
-  - `window_size_s` (float, required, default 0.25)
-  - `window_hop_s` (float, required, default 0.05)
+  - `camera_mode` (string, required, 固定 `YUYV_640x480_400fps`)
+  - `imu_sample_rate_hz` (int, required, default 400)
+  - `window_size_s` (float, required, default 0.5)
+  - `window_hop_s` (float, required, default 0.25)
   - `roi_x`/`roi_y`/`roi_w`/`roi_h` (int, optional；为空时加载设备预设默认 ROI)
   - `model_version` (string, required)
   - `error_message` (string, optional)
@@ -34,9 +34,9 @@
 - **字段**:
   - `frame_seq` (int64, required, unique)
   - `t_cam_host_s` (float, required)
-  - `width` (int, required, =160)
-  - `height` (int, required, =140)
-  - `pixel_format` (string, required, =YUY2)
+  - `width` (int, required, =640)
+  - `height` (int, required, =480)
+  - `pixel_format` (string, required, =YUYV)
   - `frame_drop_flag` (bool, required)
 
 ## 4. TimeWindowSample（统一窗口特征行）

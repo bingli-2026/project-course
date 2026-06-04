@@ -39,14 +39,17 @@ def _synth_window(window_index: int, task_id: str, profile_name: str) -> dict:
     profile = PROFILES[profile_name]
     rng = np.random.default_rng(seed=hash((task_id, window_index)) & 0xFFFFFFFF)
     j = profile["jitter"]
+    hop_frames = int(round(settings.analysis_fps * settings.window_hop_s))
+    window_frames = int(round(settings.analysis_fps * settings.window_size_s))
+    start_frame = window_index * hop_frames
     return {
         "sample_id": task_id,
         "label": profile_name,
         "modality": "fused",
         "source_name": f"simulator://{task_id}",
         "window_index": window_index,
-        "window_start_frame": window_index * 210,
-        "window_end_frame": (window_index + 1) * 210,
+        "window_start_frame": start_frame,
+        "window_end_frame": start_frame + window_frames,
         "center_time_s": round(window_index * settings.window_hop_s + settings.window_size_s / 2, 4),
         "analysis_fps": settings.analysis_fps,
         "imu_quality_flag": "ok",

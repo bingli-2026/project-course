@@ -39,8 +39,8 @@ left to right direction
 rectangle "电机 + 减速箱" as MOTOR #FFF4E6
 
 package "采集" as L1 {
-  rectangle "全局相机\n420 fps" as CAM
-  rectangle "ADXL345\n3 轴 @ 420 Hz" as IMU
+  rectangle "全局相机\n400 fps" as CAM
+  rectangle "六轴 IMU\n6 轴 @ 400 Hz" as IMU
 }
 
 package "边缘端 · 香橙派" as L2 {

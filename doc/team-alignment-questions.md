@@ -44,7 +44,7 @@ The goal is **not** to design the system in chat — most of it is already desig
 > Proposed: `normal / unbalance / loose / misaligned / unknown` (lowercase ASCII, exact spelling). Filtering, training labels, and the report all depend on us using the same words. If anyone has a stronger taxonomy from the literature, propose it now.
 >
 > **5. Window length — fixed at 0.5 s?**
-> Vision and sensor rows can only be fused if both branches use the same sliding window definition. The proposal mentions Welch sliding windows but doesn't pin a duration. Suggest fixing at 0.5 s with 0.25 s hop for both branches. Vision team / sensor team — does this work given your sample rates (vision 420 fps, sensor ~1.6 kHz)?
+> Vision and sensor rows can only be fused if both branches use the same sliding window definition. The proposal mentions Welch sliding windows but doesn't pin a duration. Suggest fixing at 0.5 s with 0.25 s hop for both branches. Vision team / sensor team — does this work given the current deployment baseline (vision 400 fps, sensor 400 Hz)?
 >
 > If we can answer all five by EOD Wednesday, every branch can keep moving in parallel without integration surprises. Reply in thread so we have a written record.
 >

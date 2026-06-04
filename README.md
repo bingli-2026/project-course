@@ -19,9 +19,9 @@ uv run project-course-camera probe \
   --device <index> \
   --backend v4l2 \
   --fourcc YUYV \
-  --width 1280 \
-  --height 720 \
-  --fps 60
+  --width 640 \
+  --height 480 \
+  --fps 400
 ```
 
 For the interactive Qt preview window, use `laboratory/global-camera`.
