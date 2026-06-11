@@ -6,7 +6,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
@@ -35,7 +35,7 @@ FS_XL_2G = 0x00
 
 @dataclass
 class WindowRecord:
-    features: dict[str, float]
+    features: dict[str, Any]
     start_time: float
     end_time: float
 
@@ -62,7 +62,7 @@ def append_feature_row(csv_path: str | Path, row: dict) -> None:
     df.to_csv(csv_path, mode="a", index=False, header=not csv_path.exists())
 
 
-def align_feature_dict(features: dict[str, float], feature_columns: Iterable[str]) -> pd.DataFrame:
+def align_feature_dict(features: dict[str, Any], feature_columns: Iterable[str]) -> pd.DataFrame:
     missing = [name for name in feature_columns if name not in features]
     if missing:
         raise ValueError(
@@ -209,7 +209,7 @@ def visual_vibration_features_from_frames(
     auto_roi: bool = False,
     auto_object: bool = False,
     appearance_frame: np.ndarray | None = None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     if len(frames) < 8:
         raise ValueError("Not enough camera frames captured for visual vibration analysis.")
 
@@ -292,7 +292,7 @@ def visual_vibration_features_from_frames(
     )
     x, y, w, h = tracks.roi
 
-    features: dict[str, float] = {
+    features: dict[str, Any] = {
         "roi_x": float(x),
         "roi_y": float(y),
         "roi_w": float(w),
@@ -398,7 +398,7 @@ def vibration_features_from_samples(
     samples: list[list[float]],
     sample_rate_hz: int = 400,
     window_seconds: float | None = None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     if not samples:
         raise ValueError("No vibration samples captured in the current window.")
 
@@ -409,7 +409,7 @@ def vibration_features_from_samples(
     axis_count = min(data.shape[1], len(axis_names))
     data = data[:, :axis_count]
 
-    features: dict[str, float] = {
+    features: dict[str, Any] = {
         "sensor_sample_rate_hz": float(sample_rate_hz),
         "sensor_window_duration_s": float(window_seconds) if window_seconds else float(data.shape[0] / sample_rate_hz),
         "imu_sample_count": float(data.shape[0]),
@@ -430,12 +430,12 @@ def vibration_features_from_i2c_samples(
     gyro_samples: list[tuple[int, int, int]] | None = None,
     sample_rate_hz: int = 400,
     window_seconds: float | None = None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     if not accel_samples:
         raise ValueError("No I2C acceleration samples captured in the current window.")
 
     accel = np.asarray(accel_samples, dtype=float)
-    features: dict[str, float] = {
+    features: dict[str, Any] = {
         "sensor_sample_rate_hz": float(sample_rate_hz),
         "sensor_window_duration_s": float(window_seconds) if window_seconds else float(len(accel) / sample_rate_hz),
         "imu_sample_count": float(len(accel)),
@@ -785,7 +785,7 @@ def _track_auto_vibrating_points(
     target_roi = _bbox_from_points(
         selected_points,
         frame_shape=frames[0].shape,
-        padding=max(2, cluster_radius // 6),
+        padding=max(8, cluster_radius),
     )
     return VisualPointTracks(
         points=selected_points,
@@ -1292,7 +1292,7 @@ def _spectrum_features(
     sample_rate_hz: float,
     min_frequency: float,
     max_frequency: float | None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     centered = np.asarray(values, dtype=float) - np.mean(values)
     if len(centered) < 4 or sample_rate_hz <= 0:
         return _empty_spectrum_features(prefix)
@@ -1320,21 +1320,25 @@ def _spectrum_features(
         f"{prefix}_band_power": total_power,
         f"{prefix}_spectral_centroid_hz": float(np.sum(freqs * power) / total_power),
         f"{prefix}_spectral_entropy": float(-np.sum(probability * np.log2(probability + 1e-12))),
+        f"{prefix}_freq_hz": _to_float_list(freqs),
+        f"{prefix}_power": _to_float_list(power),
     }
 
 
-def _empty_spectrum_features(prefix: str) -> dict[str, float]:
+def _empty_spectrum_features(prefix: str) -> dict[str, Any]:
     return {
         f"{prefix}_peak_hz": 0.0,
         f"{prefix}_peak_power": 0.0,
         f"{prefix}_band_power": 0.0,
         f"{prefix}_spectral_centroid_hz": 0.0,
         f"{prefix}_spectral_entropy": 0.0,
+        f"{prefix}_freq_hz": [],
+        f"{prefix}_power": [],
     }
 
 
 def _add_signal_features(
-    features: dict[str, float],
+    features: dict[str, Any],
     prefix: str,
     values: np.ndarray,
     sample_rate_hz: int,
@@ -1375,12 +1379,20 @@ def _add_signal_features(
             features[f"{prefix}_band_power"] = total_power
             features[f"{prefix}_spectral_centroid_hz"] = float(np.sum(freqs * power) / total_power)
             features[f"{prefix}_spectral_entropy"] = float(-np.sum(probability * np.log2(probability + 1e-12)))
+            features[f"{prefix}_freq_hz"] = _to_float_list(freqs)
+            features[f"{prefix}_power"] = _to_float_list(power)
         else:
             features[f"{prefix}_peak_hz"] = 0.0
             features[f"{prefix}_peak_power"] = 0.0
             features[f"{prefix}_band_power"] = 0.0
             features[f"{prefix}_spectral_centroid_hz"] = 0.0
             features[f"{prefix}_spectral_entropy"] = 0.0
+            features[f"{prefix}_freq_hz"] = []
+            features[f"{prefix}_power"] = []
+
+
+def _to_float_list(values: np.ndarray) -> list[float]:
+    return [float(value) for value in np.asarray(values, dtype=float)]
 
 
 def _init_ms6dsv(bus, address: int) -> None:

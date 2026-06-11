@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from project_course.api.config import settings
 from project_course.api.live import LIVE_STATE, finish_task, get_active_task, start_task
+from project_course.api.live.real_pipeline import get_real_model_version
 from project_course.api.storage import db
 from project_course.api.storage.models import (
     AxisSpectrum,
@@ -53,7 +54,13 @@ def create_task(body: CreateTaskRequest) -> TaskResponse:
         roi_y=body.roi_y,
         roi_w=body.roi_w,
         roi_h=body.roi_h,
-        model_version="sim-baseline-v0" if settings.simulator_enabled else None,
+        model_version=(
+            "sim-baseline-v0"
+            if settings.simulator_enabled
+            else get_real_model_version()
+            if settings.real_pipeline_enabled
+            else None
+        ),
     )
     row = db.get_task(task_id)
     assert row is not None
@@ -120,7 +127,7 @@ def get_task_windows(task_id: str) -> TaskWindowsResponse:
 
 @router.get(
     "/{task_id}/spectra",
-    summary="Get per-axis spectrum curves for one window (stub: synthesized from features)",
+    summary="Get per-axis spectrum curves for one window",
     response_model=WindowSpectraResponse,
 )
 def get_task_spectra(
@@ -136,7 +143,10 @@ def get_task_spectra(
             detail=f"window {window_index} of task {task_id} not found",
         )
 
-    def axis(peak_hz_key: str, peak_power_key: str) -> AxisSpectrum | None:
+    def axis(axis_key: str, peak_hz_key: str, peak_power_key: str) -> AxisSpectrum | None:
+        real = _real_spectrum_from_payload(payload, axis_key)
+        if real is not None:
+            return real
         peak = payload.get(peak_hz_key)
         power = payload.get(peak_power_key, 1.0) or 1.0
         if peak is None:
@@ -146,14 +156,14 @@ def get_task_spectra(
     return WindowSpectraResponse(
         task_id=task_id,
         window_index=window_index,
-        vision_dx=axis("vision_dx_peak_hz", "vision_dx_peak_power"),
-        vision_dy=axis("vision_dy_peak_hz", "vision_dy_peak_power"),
-        sensor_ax=axis("sensor_ax_peak_hz", "sensor_ax_peak_power"),
-        sensor_ay=axis("sensor_ay_peak_hz", "sensor_ay_peak_power"),
-        sensor_az=axis("sensor_az_peak_hz", "sensor_az_peak_power"),
-        sensor_gx=axis("sensor_gx_peak_hz", "sensor_gx_peak_power"),
-        sensor_gy=axis("sensor_gy_peak_hz", "sensor_gy_peak_power"),
-        sensor_gz=axis("sensor_gz_peak_hz", "sensor_gz_peak_power"),
+        vision_dx=axis("vision_dx", "vision_dx_peak_hz", "vision_dx_peak_power"),
+        vision_dy=axis("vision_dy", "vision_dy_peak_hz", "vision_dy_peak_power"),
+        sensor_ax=axis("sensor_ax", "sensor_ax_peak_hz", "sensor_ax_peak_power"),
+        sensor_ay=axis("sensor_ay", "sensor_ay_peak_hz", "sensor_ay_peak_power"),
+        sensor_az=axis("sensor_az", "sensor_az_peak_hz", "sensor_az_peak_power"),
+        sensor_gx=axis("sensor_gx", "sensor_gx_peak_hz", "sensor_gx_peak_power"),
+        sensor_gy=axis("sensor_gy", "sensor_gy_peak_hz", "sensor_gy_peak_power"),
+        sensor_gz=axis("sensor_gz", "sensor_gz_peak_hz", "sensor_gz_peak_power"),
     )
 
 
@@ -167,6 +177,29 @@ def _clean_nan(record: dict[str, Any]) -> dict[str, Any]:
         else:
             cleaned[k] = v
     return cleaned
+
+
+def _real_spectrum_from_payload(payload: dict[str, Any], axis_key: str) -> AxisSpectrum | None:
+    candidates = [
+        (f"{axis_key}_freq_hz", f"{axis_key}_power"),
+        (f"{axis_key}_spectrum_freq_hz", f"{axis_key}_spectrum_power"),
+    ]
+    for freq_key, power_key in candidates:
+        freqs = payload.get(freq_key)
+        powers = payload.get(power_key)
+        if _is_number_list(freqs) and _is_number_list(powers) and len(freqs) == len(powers) and freqs:
+            return AxisSpectrum(
+                freq_hz=[float(v) for v in freqs],
+                power=[float(v) for v in powers],
+            )
+    return None
+
+
+def _is_number_list(values: Any) -> bool:
+    return (
+        isinstance(values, list)
+        and all(isinstance(item, (int, float)) and not math.isnan(float(item)) for item in values)
+    )
 
 
 def _synthesize_spectrum(peak_hz: float, peak_power: float, *, n: int = 64, max_hz: float = 200.0) -> AxisSpectrum:

@@ -36,6 +36,19 @@ def test_health_check(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_cors_preflight_allows_lan_frontend(client: TestClient) -> None:
+    response = client.options(
+        "/api/v1/tasks",
+        headers={
+            "Origin": "http://192.168.1.10:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
 def test_history_list_empty(client: TestClient) -> None:
     response = client.get("/api/v1/history")
     assert response.status_code == 200
@@ -143,6 +156,40 @@ def test_task_spectra_returns_curves(client: TestClient) -> None:
     assert body["vision_dx"] is not None
     assert len(body["vision_dx"]["freq_hz"]) > 0
     assert body["sensor_ax"] is not None
+
+
+def test_task_spectra_prefers_real_arrays_when_present(client: TestClient) -> None:
+    from project_course.api.live import publish_window
+
+    create = client.post("/api/v1/tasks", json={"device_id": "rig-test"})
+    task_id = create.json()["task_id"]
+    publish_window(
+        {
+            "sample_id": task_id,
+            "window_index": 0,
+            "center_time_s": 0.25,
+            "vision_dx_peak_hz": 12.0,
+            "vision_dx_peak_power": 0.5,
+            "vision_dx_freq_hz": [0.0, 10.0, 20.0],
+            "vision_dx_power": [0.1, 0.9, 0.2],
+            "sensor_gx_peak_hz": 50.0,
+            "sensor_gx_peak_power": 0.8,
+            "sensor_gx_spectrum_freq_hz": [0.0, 40.0, 80.0],
+            "sensor_gx_spectrum_power": [0.2, 0.7, 0.1],
+        }
+    )
+
+    spectra = client.get(f"/api/v1/tasks/{task_id}/spectra", params={"window_index": 0})
+    assert spectra.status_code == 200
+    body = spectra.json()
+    assert body["vision_dx"] == {
+        "freq_hz": [0.0, 10.0, 20.0],
+        "power": [0.1, 0.9, 0.2],
+    }
+    assert body["sensor_gx"] == {
+        "freq_hz": [0.0, 40.0, 80.0],
+        "power": [0.2, 0.7, 0.1],
+    }
 
 
 def test_dashboard_overview_when_idle(client: TestClient) -> None:

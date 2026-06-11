@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from project_course.api.config import settings
+from project_course.api.live.real_pipeline import real_pipeline_lifespan
 from project_course.api.live.simulator import simulator_lifespan
 from project_course.api.routers.dashboard import router as dashboard_router
 from project_course.api.routers.health import router as health_router
@@ -26,7 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "marked %d orphaned running task(s) as failed on startup", orphaned,
         )
     scan_directory()  # populate offline history from data/samples/ on startup
-    async with simulator_lifespan():
+    async with simulator_lifespan(), real_pipeline_lifespan():
         yield
 
 
@@ -40,7 +41,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_credentials=True,
+        allow_origin_regex=settings.cors_origin_regex,
+        allow_credentials=settings.cors_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
