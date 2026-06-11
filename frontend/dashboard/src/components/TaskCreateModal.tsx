@@ -11,6 +11,8 @@ interface Props {
 
 function TaskCreateModal({ onCreated, onClose }: Props): JSX.Element {
   const [deviceId, setDeviceId] = useState("rig-01");
+  const [cameraMode, setCameraMode] = useState("YUYV_640x480_400fps");
+  const [imuSampleRateHz, setImuSampleRateHz] = useState(400);
   const [windowSize, setWindowSize] = useState(0.5);
   const [windowHop, setWindowHop] = useState(0.25);
   const [roi, setRoi] = useState({ x: "", y: "", w: "", h: "" });
@@ -27,6 +29,8 @@ function TaskCreateModal({ onCreated, onClose }: Props): JSX.Element {
     try {
       const body: CreateTaskRequest = {
         device_id: deviceId.trim(),
+        camera_mode: cameraMode.trim(),
+        imu_sample_rate_hz: imuSampleRateHz,
         window_size_s: windowSize,
         window_hop_s: windowHop
       };
@@ -62,6 +66,22 @@ function TaskCreateModal({ onCreated, onClose }: Props): JSX.Element {
         <Field label="设备 ID *">
           <input value={deviceId} onChange={(e) => setDeviceId(e.target.value)} style={inputStyle} />
         </Field>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="相机模式">
+            <input value={cameraMode} onChange={(e) => setCameraMode(e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="IMU 采样率 (Hz)">
+            <input
+              type="number"
+              step={1}
+              min={1}
+              value={imuSampleRateHz}
+              onChange={(e) => setImuSampleRateHz(Number(e.target.value))}
+              style={inputStyle}
+            />
+          </Field>
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="窗口长度 (s)">

@@ -6,7 +6,7 @@ import StateCard from "../components/StateCard";
 import StatusBar from "../components/StatusBar";
 import TaskBar from "../components/TaskBar";
 import { usePolling } from "../hooks/usePolling";
-import { getDashboardOverview, getTaskWindows } from "../services/api";
+import { getApiBaseUrl, getDashboardOverview, getTaskWindows } from "../services/api";
 import type { WindowSample } from "../types/api";
 
 function LiveDashboardPage(): JSX.Element {
@@ -22,6 +22,7 @@ function LiveDashboardPage(): JSX.Element {
   );
 
   const samples = windows.data?.samples ?? [];
+  const latestSample = samples.length > 0 ? samples[samples.length - 1] : null;
   const latestWindowIndex = samples.length > 0 ? samples[samples.length - 1].window_index : null;
 
   const recentStates = useMemo(
@@ -64,7 +65,13 @@ function LiveDashboardPage(): JSX.Element {
         </div>
       </div>
 
-      <StatusBar overview={overview.data} lastRefreshAt={lastRefreshAt} backendDown={backendDown} />
+      <StatusBar
+        overview={overview.data}
+        lastRefreshAt={lastRefreshAt}
+        apiBaseUrl={getApiBaseUrl()}
+        latestSample={latestSample}
+        backendDown={backendDown}
+      />
 
       {!taskId && !overview.loading && (
         <div style={emptyHintStyle}>

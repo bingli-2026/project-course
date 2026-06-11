@@ -1,14 +1,18 @@
-import type { DashboardOverview } from "../types/api";
+import type { DashboardOverview, WindowSample } from "../types/api";
 
 interface Props {
   overview: DashboardOverview | null;
   lastRefreshAt: Date | null;
+  apiBaseUrl: string;
+  latestSample: WindowSample | null;
   backendDown?: boolean;
 }
 
-function StatusBar({ overview, lastRefreshAt, backendDown }: Props): JSX.Element {
+function StatusBar({ overview, lastRefreshAt, apiBaseUrl, latestSample, backendDown }: Props): JSX.Element {
   const offset = overview?.sync_offset_ms_p95 ?? null;
   const aligned = overview?.aligned_window_ratio ?? null;
+  const analysisFps = readMetric(latestSample, "analysis_fps");
+  const sensorHz = readMetric(latestSample, "sensor_sample_rate_hz");
 
   const offsetWarn = offset !== null && offset > 2.0;
   const alignedWarn = aligned !== null && aligned < 0.9;
@@ -16,6 +20,16 @@ function StatusBar({ overview, lastRefreshAt, backendDown }: Props): JSX.Element
   return (
     <div style={barStyle}>
       {backendDown && <span style={errStyle}>服务不可用</span>}
+      <Item label="后端" value={compactApiBaseUrl(apiBaseUrl)} />
+      <Divider />
+      <Item label="任务" value={overview?.latest_task_id?.slice(-8) ?? "—"} />
+      <Divider />
+      <Item label="最新窗" value={overview?.latest_window_index != null ? `#${overview.latest_window_index}` : "—"} />
+      <Divider />
+      <Item label="视觉 FPS" value={analysisFps !== null ? analysisFps.toFixed(1) : "—"} />
+      <Divider />
+      <Item label="IMU Hz" value={sensorHz !== null ? sensorHz.toFixed(1) : "—"} />
+      <Divider />
       <Item label="同步偏移 p95" value={offset !== null ? `${offset.toFixed(2)} ms` : "—"} warn={offsetWarn} />
       <Divider />
       <Item label="对齐率" value={aligned !== null ? `${(aligned * 100).toFixed(0)}%` : "—"} warn={alignedWarn} />
@@ -34,6 +48,16 @@ function StatusBar({ overview, lastRefreshAt, backendDown }: Props): JSX.Element
       </span>
     </div>
   );
+}
+
+function readMetric(sample: WindowSample | null, key: string): number | null {
+  if (!sample) return null;
+  const value = sample[key];
+  return typeof value === "number" && !Number.isNaN(value) ? value : null;
+}
+
+function compactApiBaseUrl(value: string): string {
+  return value.replace(/^https?:\/\//, "");
 }
 
 function Item({ label, value, warn }: { label: string; value: string; warn?: boolean }): JSX.Element {

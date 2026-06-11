@@ -12,8 +12,19 @@ import type {
   WindowSpectraResponse
 } from "../types/api";
 
+export function getApiBaseUrl(): string {
+  const override = import.meta.env.VITE_API_BASE_URL;
+  if (typeof override === "string" && override.trim() !== "") {
+    return override.trim();
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+  }
+  return "http://127.0.0.1:8000/api/v1";
+}
+
 export const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/v1",
+  baseURL: getApiBaseUrl(),
   timeout: 10000
 });
 

@@ -7,6 +7,7 @@ interface Props {
 
 const STATE_COLORS: Record<string, string> = {
   normal: "#16a34a",
+  fault: "#ef4444",
   unbalance: "#ef4444",
   loose: "#f97316",
   misaligned: "#dc2626",
@@ -80,6 +81,7 @@ function StateCard({ overview, recentStates }: Props): JSX.Element {
 function translateState(s: string): string {
   const map: Record<string, string> = {
     normal: "正常",
+    fault: "异常",
     unbalance: "不平衡",
     loose: "松动",
     misaligned: "不对中",
